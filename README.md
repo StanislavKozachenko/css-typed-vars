@@ -22,11 +22,11 @@ npm install -D css-typed-vars
 ## CLI
 
 ```sh
-npx css-typed-vars --input src/styles --output src/cssVars.ts
-npx css-typed-vars --input src/styles --output src/cssVars.ts --watch
+npx css-typed-vars --input "src/styles/**/*.css" --output src/cssVars.ts
+npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts --watch
 ```
 
-Given this CSS:
+Given this CSS/SCSS:
 
 ```css
 :root {
@@ -56,13 +56,23 @@ element.style.color = cssVars.colorPrimary;  // ✓
 element.style.color = cssVars.colorPrimeryy; // ✗ TypeScript error
 ```
 
+## Supported formats
+
+| Format | Extension | Supported |
+|--------|-----------|-----------|
+| CSS | `.css` | ✓ |
+| SCSS | `.scss` | ✓ |
+| Less | `.less` | ✓ |
+
+Variables must be declared inside a `:root {}` block. Attribute selectors are supported (e.g. `:root[data-theme="dark"]`).
+
 ## Programmatic API
 
 ```ts
 import { generate } from 'css-typed-vars';
 
 await generate({
-  input: 'src/styles/**/*.css',
+  input: 'src/styles/**/*.{css,scss}',
   output: 'src/cssVars.ts',
 });
 ```
