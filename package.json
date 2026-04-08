@@ -17,6 +17,12 @@
     "css-typed-vars": "./dist/cli.js"
   },
   "license": "MIT",
+  "homepage": "https://github.com/StanislavKozachenko/css-typed-vars#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/StanislavKozachenko/css-typed-vars.git"
+  },
+  "keywords": ["css", "scss", "css-variables", "custom-properties", "typescript", "codegen", "typed"],
   "files": [
     "dist"
   ],
