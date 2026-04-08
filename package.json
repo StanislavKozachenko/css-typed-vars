@@ -17,7 +17,9 @@
     "css-typed-vars": "./dist/cli.js"
   },
   "license": "MIT",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run --passWithNoTests",
@@ -28,6 +30,7 @@
     "fast-glob": "^3.3.2"
   },
   "devDependencies": {
+    "@types/node": "^25.5.2",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
     "vitest": "^3.0.0"
