@@ -1,0 +1,35 @@
+{
+  "name": "css-typed-vars",
+  "version": "0.0.0",
+  "description": "Generate TypeScript typed constants from CSS custom properties",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bin": {
+    "css-typed-vars": "./dist/cli.js"
+  },
+  "license": "MIT",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "fast-glob": "^3.3.2"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}
