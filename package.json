@@ -1,6 +1,6 @@
 {
   "name": "css-typed-vars",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Generate TypeScript typed constants from CSS custom properties",
   "type": "module",
   "main": "./dist/index.cjs",
