@@ -19,14 +19,39 @@
 npm install -D css-typed-vars
 ```
 
-## CLI
+## Quick start
 
-```sh
-npx css-typed-vars --input "src/styles/**/*.css" --output src/cssVars.ts
-npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts --watch
+Create a config file in your project root:
+
+```js
+// css-typed-vars.config.js
+export default {
+  input: 'src/styles/**/*.{css,scss}',
+  output: 'src/cssVars.ts',
+};
 ```
 
-Given this CSS/SCSS:
+Then run:
+
+```sh
+npx css-typed-vars         # generate once
+npx css-typed-vars --watch # watch for changes
+```
+
+Add to your `package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "generate:vars": "css-typed-vars",
+    "generate:vars:watch": "css-typed-vars --watch"
+  }
+}
+```
+
+## How it works
+
+Given this CSS:
 
 ```css
 :root {
@@ -35,7 +60,7 @@ Given this CSS/SCSS:
 }
 ```
 
-Generates:
+Generates `src/cssVars.ts`:
 
 ```ts
 // generated — do not edit
@@ -47,13 +72,91 @@ export const cssVars = {
 export type CssVarName = keyof typeof cssVars;
 ```
 
-Now in your code:
+## Usage
+
+**React:**
+
+```tsx
+import { cssVars } from './cssVars';
+
+<div style={{ color: cssVars.colorPrimary, padding: cssVars.spacingMd }} />
+```
+
+**styled-components / emotion:**
 
 ```ts
 import { cssVars } from './cssVars';
 
-element.style.color = cssVars.colorPrimary;  // ✓
-element.style.color = cssVars.colorPrimeryy; // ✗ TypeScript error
+const Button = styled.button`
+  color: ${cssVars.colorPrimary};
+  padding: ${cssVars.spacingMd};
+`;
+```
+
+**Vue:**
+
+```vue
+<div :style="{ color: cssVars.colorPrimary }" />
+```
+
+**Svelte:**
+
+```svelte
+<div style:color={cssVars.colorPrimary} />
+```
+
+**Tailwind arbitrary values:**
+
+```tsx
+<div className={`text-[${cssVars.colorPrimary}]`} />
+```
+
+## CLI
+
+```sh
+npx css-typed-vars --input "src/styles/**/*.css" --output src/cssVars.ts
+npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts --watch
+```
+
+| Flag | Description |
+|------|-------------|
+| `--input` | Glob pattern for CSS/SCSS/Less files |
+| `--output` | Path to the generated TypeScript file |
+| `--watch` | Watch for file changes and regenerate |
+
+CLI flags override values from the config file.
+
+## Config file
+
+The CLI looks for a config file in the current working directory (in order):
+
+1. `css-typed-vars.config.js`
+2. `css-typed-vars.config.mjs`
+3. `css-typed-vars.config.json`
+
+```js
+// css-typed-vars.config.js
+export default {
+  input: 'src/styles/**/*.{css,scss}',
+  output: 'src/cssVars.ts',
+};
+```
+
+## Programmatic API
+
+```ts
+import { generate } from 'css-typed-vars';
+
+await generate({
+  input: 'src/styles/**/*.{css,scss}',
+  output: 'src/cssVars.ts',
+});
+```
+
+Lower-level exports:
+
+```ts
+import { parseVarNames, generateCode, scanVarNames } from 'css-typed-vars';
 ```
 
 ## Supported formats
@@ -66,15 +169,15 @@ element.style.color = cssVars.colorPrimeryy; // ✗ TypeScript error
 
 Variables must be declared inside a `:root {}` block. Attribute selectors are supported (e.g. `:root[data-theme="dark"]`).
 
-## Programmatic API
+## Contributing
 
-```ts
-import { generate } from 'css-typed-vars';
+Contributions are welcome. Please open an issue before submitting a pull request.
 
-await generate({
-  input: 'src/styles/**/*.{css,scss}',
-  output: 'src/cssVars.ts',
-});
+```sh
+git clone https://github.com/StanislavKozachenko/css-typed-vars.git
+cd css-typed-vars
+npm install
+npm test
 ```
 
 ## License
