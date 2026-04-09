@@ -11,6 +11,31 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js",
+      "require": "./dist/vite.cjs"
+    },
+    "./rollup": {
+      "types": "./dist/rollup.d.ts",
+      "import": "./dist/rollup.js",
+      "require": "./dist/rollup.cjs"
+    },
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "import": "./dist/webpack.js",
+      "require": "./dist/webpack.cjs"
+    },
+    "./esbuild": {
+      "types": "./dist/esbuild.d.ts",
+      "import": "./dist/esbuild.js",
+      "require": "./dist/esbuild.cjs"
+    },
+    "./vars": {
+      "types": "./dist/generated.d.ts",
+      "import": "./dist/vars.js",
+      "require": "./dist/vars.cjs"
     }
   },
   "bin": {
@@ -22,18 +47,27 @@
     "type": "git",
     "url": "https://github.com/StanislavKozachenko/css-typed-vars.git"
   },
-  "keywords": ["css", "scss", "css-variables", "custom-properties", "typescript", "codegen", "typed"],
+  "keywords": [
+    "css",
+    "scss",
+    "css-variables",
+    "custom-properties",
+    "typescript",
+    "codegen",
+    "typed"
+  ],
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/postbuild.mjs",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
-    "fast-glob": "^3.3.2"
+    "fast-glob": "^3.3.2",
+    "unplugin": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
