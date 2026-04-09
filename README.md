@@ -9,9 +9,29 @@
 
 ---
 
+- [Installation](#installation)
+- [Two approaches](#two-approaches)
+- [CLI](#cli)
+  - [CLI flags](#cli-flags)
+  - [Config file](#config-file)
+- [Plugin](#plugin)
+  - [Vite](#vite)
+  - [webpack](#webpack)
+  - [Rollup](#rollup)
+  - [esbuild](#esbuild)
+  - [Next.js (webpack)](#nextjs-webpack)
+  - [Turbopack](#turbopack)
+  - [Plugin options](#plugin-options)
+- [Usage](#usage)
+- [Programmatic API](#programmatic-api)
+- [Supported formats](#supported-formats)
+- [Contributing](#contributing)
+
+---
+
 `var(--color-primary)` is just a string. Rename the variable — the error shows up only in the browser.
 
-`css-typed-vars` scans your CSS files and generates a typed constants file. Use `cssVars.colorPrimary` instead — TypeScript catches missing variables at compile time.
+`css-typed-vars` scans your CSS files and gives you typed constants. Use `cssVars.colorPrimary` instead — TypeScript catches missing variables at compile time.
 
 ## Installation
 
@@ -19,7 +39,18 @@
 npm install -D css-typed-vars
 ```
 
-## Quick start
+## Two approaches
+
+| | CLI | Plugin |
+|---|---|---|
+| How it works | Generates `cssVars.ts` in your project | Virtual module, no file generated |
+| Import | `import { cssVars } from './cssVars'` | `import { cssVars } from 'css-typed-vars/vars'` |
+| Watch | `--watch` flag | `vite dev`, browser reloads automatically |
+| Works with | Everything | Vite, webpack, Rollup, esbuild (not Turbopack) |
+
+---
+
+## CLI
 
 Create a config file in your project root:
 
@@ -49,8 +80,6 @@ Add to your `package.json` scripts:
 }
 ```
 
-## How it works
-
 Given this CSS:
 
 ```css
@@ -72,12 +101,132 @@ export const cssVars = {
 export type CssVarName = keyof typeof cssVars;
 ```
 
+### CLI flags
+
+```sh
+npx css-typed-vars --input "src/styles/**/*.css" --output src/cssVars.ts
+npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts --watch
+```
+
+| Flag | Description |
+|------|-------------|
+| `--input` | Glob pattern for CSS/SCSS/Less files |
+| `--output` | Path to the generated TypeScript file |
+| `--watch` | Watch for file changes and regenerate |
+
+CLI flags override values from the config file.
+
+### Config file
+
+The CLI looks for a config file in the current working directory (in order):
+
+1. `css-typed-vars.config.js`
+2. `css-typed-vars.config.mjs`
+3. `css-typed-vars.config.json`
+
+---
+
+## Plugin
+
+No file is generated — CSS variables are served as a virtual module directly by your bundler. Import from `css-typed-vars/vars` in your source code.
+
+TypeScript types are written to `node_modules/css-typed-vars/dist/generated.d.ts` automatically on each build or dev server start.
+
+### Vite
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import cssTypedVars from 'css-typed-vars/vite';
+
+export default defineConfig({
+  plugins: [
+    cssTypedVars({ input: 'src/styles/**/*.{css,scss}' }),
+  ],
+});
+```
+
+```ts
+// src/index.ts
+import { cssVars } from 'css-typed-vars/vars';
+```
+
+### webpack
+
+```js
+// webpack.config.js
+import cssTypedVars from 'css-typed-vars/webpack';
+
+export default {
+  plugins: [cssTypedVars({ input: 'src/styles/**/*.{css,scss}' })],
+};
+```
+
+### Rollup
+
+```js
+// rollup.config.js
+import cssTypedVars from 'css-typed-vars/rollup';
+
+export default {
+  plugins: [cssTypedVars({ input: 'src/styles/**/*.{css,scss}' })],
+};
+```
+
+### esbuild
+
+```js
+import cssTypedVars from 'css-typed-vars/esbuild';
+
+await esbuild.build({
+  plugins: [cssTypedVars({ input: 'src/styles/**/*.{css,scss}' })],
+});
+```
+
+### Next.js (webpack)
+
+```js
+// next.config.js
+const cssTypedVars = require('css-typed-vars/webpack');
+
+module.exports = {
+  webpack(config) {
+    config.plugins.push(cssTypedVars({ input: 'styles/**/*.{css,scss}' }));
+    return config;
+  },
+};
+```
+
+### Turbopack
+
+Turbopack does not yet have a public plugin API for virtual modules. Use the CLI instead:
+
+```json
+{
+  "scripts": {
+    "dev": "css-typed-vars && next dev --turbo",
+    "build": "css-typed-vars && next build"
+  }
+}
+```
+
+### Plugin options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `input` | `string \| string[]` | — | Glob pattern for CSS/SCSS/Less files |
+| `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
+
+---
+
 ## Usage
 
 **React:**
 
 ```tsx
-import { cssVars } from './cssVars';
+import { cssVars } from './cssVars'; // CLI
+// or
+import { cssVars } from 'css-typed-vars/vars'; // plugin
 
 <div style={{ color: cssVars.colorPrimary, padding: cssVars.spacingMd }} />
 ```
@@ -85,8 +234,6 @@ import { cssVars } from './cssVars';
 **styled-components / emotion:**
 
 ```ts
-import { cssVars } from './cssVars';
-
 const Button = styled.button`
   color: ${cssVars.colorPrimary};
   padding: ${cssVars.spacingMd};
@@ -111,36 +258,7 @@ const Button = styled.button`
 <div className={`text-[${cssVars.colorPrimary}]`} />
 ```
 
-## CLI
-
-```sh
-npx css-typed-vars --input "src/styles/**/*.css" --output src/cssVars.ts
-npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts --watch
-```
-
-| Flag | Description |
-|------|-------------|
-| `--input` | Glob pattern for CSS/SCSS/Less files |
-| `--output` | Path to the generated TypeScript file |
-| `--watch` | Watch for file changes and regenerate |
-
-CLI flags override values from the config file.
-
-## Config file
-
-The CLI looks for a config file in the current working directory (in order):
-
-1. `css-typed-vars.config.js`
-2. `css-typed-vars.config.mjs`
-3. `css-typed-vars.config.json`
-
-```js
-// css-typed-vars.config.js
-export default {
-  input: 'src/styles/**/*.{css,scss}',
-  output: 'src/cssVars.ts',
-};
-```
+---
 
 ## Programmatic API
 
@@ -161,11 +279,11 @@ import { parseVarNames, generateCode, scanVarNames } from 'css-typed-vars';
 
 ## Supported formats
 
-| Format | Extension | Supported |
-|--------|-----------|-----------|
-| CSS | `.css` | ✓ |
-| SCSS | `.scss` | ✓ |
-| Less | `.less` | ✓ |
+| Format | Extension |
+|--------|-----------|
+| CSS | `.css` |
+| SCSS | `.scss` |
+| Less | `.less` |
 
 Variables must be declared inside a `:root {}` block. Attribute selectors are supported (e.g. `:root[data-theme="dark"]`).
 

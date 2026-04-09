@@ -16,3 +16,24 @@ export function generateCode(varNames: string[]): string {
     '',
   ].join('\n');
 }
+
+export function generateJs(varNames: string[]): string {
+  const entries = varNames.map(name => `  ${toCamelCase(name)}: 'var(${name})',`);
+  return [
+    'export const cssVars = {',
+    ...entries,
+    '};',
+    '',
+  ].join('\n');
+}
+
+export function generateDeclaration(varNames: string[]): string {
+  const entries = varNames.map(name => `  ${toCamelCase(name)}: 'var(${name})';`);
+  return [
+    'export declare const cssVars: {',
+    ...entries,
+    '};',
+    'export type CssVarName = keyof typeof cssVars;',
+    '',
+  ].join('\n');
+}

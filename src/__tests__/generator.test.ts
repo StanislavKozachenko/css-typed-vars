@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCode } from '../generator.js';
+import { generateCode, generateDeclaration } from '../generator.js';
 
 describe('generateCode', () => {
   it('generates typed constants from var names', () => {
@@ -30,6 +30,26 @@ describe('generateCode', () => {
     const result = generateCode([]);
     expect(result).toContain('export const cssVars = {');
     expect(result).toContain('} as const;');
+    expect(result).not.toContain('var(--');
+  });
+});
+
+describe('generateDeclaration', () => {
+  it('generates typed exports for css-typed-vars/vars', () => {
+    const result = generateDeclaration(['--color-primary', '--spacing-md']);
+    expect(result).toContain("colorPrimary: 'var(--color-primary)';");
+    expect(result).toContain("spacingMd: 'var(--spacing-md)';");
+  });
+
+  it('exports cssVars and CssVarName', () => {
+    const result = generateDeclaration(['--color-primary']);
+    expect(result).toContain('export declare const cssVars: {');
+    expect(result).toContain('export type CssVarName = keyof typeof cssVars;');
+  });
+
+  it('returns empty cssVars shape for empty input', () => {
+    const result = generateDeclaration([]);
+    expect(result).toContain('export declare const cssVars: {');
     expect(result).not.toContain('var(--');
   });
 });

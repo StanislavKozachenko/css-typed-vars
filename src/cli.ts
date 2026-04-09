@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
 import { scanVarNames } from './scanner.js';
 import { generateCode } from './generator.js';
@@ -30,7 +31,7 @@ async function loadConfig(): Promise<Config> {
         const content = await readFile(path, 'utf8');
         return JSON.parse(content) as Config;
       } else {
-        const mod = await import(path) as { default: Config };
+        const mod = await import(pathToFileURL(path).href) as { default: Config };
         return mod.default;
       }
     } catch {
