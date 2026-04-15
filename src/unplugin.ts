@@ -13,6 +13,8 @@ export interface Options {
    * - `false`: skip writing
    */
   dts?: string | false;
+  exclude?: string | string[];
+  prefix?: string;
 }
 
 const VIRTUAL_ID = 'css-typed-vars/vars';
@@ -38,11 +40,11 @@ export default createUnplugin((options: Options) => ({
       server.watcher.on('change', async (file: string) => {
         if (!/\.(css|scss|less)$/i.test(file)) return;
 
-        const names = await scanVarNames(options.input);
+        const names = await scanVarNames(options.input, options.exclude);
 
         const dtsPath = getDtsPath(options);
         if (dtsPath) {
-          await writeFile(dtsPath, generateDeclaration(names), 'utf8');
+          await writeFile(dtsPath, generateDeclaration(names, options.prefix), 'utf8');
         }
 
         const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
@@ -57,8 +59,8 @@ export default createUnplugin((options: Options) => ({
   async buildStart() {
     const dtsPath = getDtsPath(options);
     if (!dtsPath) return;
-    const names = await scanVarNames(options.input);
-    await writeFile(dtsPath, generateDeclaration(names), 'utf8');
+    const names = await scanVarNames(options.input, options.exclude);
+    await writeFile(dtsPath, generateDeclaration(names, options.prefix), 'utf8');
   },
 
   resolveId(id: string) {
@@ -67,8 +69,8 @@ export default createUnplugin((options: Options) => ({
 
   async load(id: string) {
     if (id === RESOLVED_ID) {
-      const names = await scanVarNames(options.input);
-      return generateJs(names);
+      const names = await scanVarNames(options.input, options.exclude);
+      return generateJs(names, options.prefix);
     }
   },
 }));
