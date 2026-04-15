@@ -54,6 +54,28 @@ describe('generateCode', () => {
     const result = generateCode(['--color-primary'], undefined);
     expect(result).toContain("colorPrimary: 'var(--color-primary)'");
   });
+
+  it('snake naming converts hyphens to underscores', () => {
+    const result = generateCode(['--color-primary', '--spacing-md'], undefined, 'snake');
+    expect(result).toContain("color_primary: 'var(--color-primary)'");
+    expect(result).toContain("spacing_md: 'var(--spacing-md)'");
+  });
+
+  it('kebab naming strips -- and keeps hyphens as quoted key', () => {
+    const result = generateCode(['--color-primary', '--spacing-md'], undefined, 'kebab');
+    expect(result).toContain("'color-primary': 'var(--color-primary)'");
+    expect(result).toContain("'spacing-md': 'var(--spacing-md)'");
+  });
+
+  it('snake naming with prefix uses underscore separator', () => {
+    const result = generateCode(['--color-primary'], 'theme', 'snake');
+    expect(result).toContain("theme_color_primary: 'var(--color-primary)'");
+  });
+
+  it('kebab naming with prefix uses hyphen separator', () => {
+    const result = generateCode(['--color-primary'], 'theme', 'kebab');
+    expect(result).toContain("'theme-color-primary': 'var(--color-primary)'");
+  });
 });
 
 describe('generateDeclaration', () => {
