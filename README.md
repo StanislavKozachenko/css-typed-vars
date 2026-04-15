@@ -110,15 +110,17 @@ npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts 
 
 ```sh
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/vendor/**"
-npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme --naming snake
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--input` | Glob pattern for CSS/SCSS/Less files |
-| `--output` | Path to the generated TypeScript file |
+| `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside |
 | `--exclude` | Glob pattern for files to exclude (single value; use config file for multiple) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
+| `--naming` | Key naming: `camelCase` (default), `snake`, `kebab` |
 | `--watch` | Watch for file changes and regenerate |
 
 CLI flags override values from the config file.
@@ -140,6 +142,7 @@ export default {
   output: 'src/cssVars.ts',
   exclude: ['**/vendor/**', '**/node_modules/**'],
   prefix: 'theme',
+  naming: 'snake', // 'camelCase' | 'snake' | 'kebab'
 };
 ```
 
@@ -236,6 +239,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `input` | `string \| string[]` | — | Glob pattern for CSS/SCSS/Less files |
 | `exclude` | `string \| string[]` | — | Glob pattern(s) for files to exclude |
 | `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
+| `naming` | `'camelCase' \| 'snake' \| 'kebab'` | `'camelCase'` | Key naming convention |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
 
 ---
@@ -288,9 +292,10 @@ import { generate } from 'css-typed-vars';
 
 await generate({
   input: 'src/styles/**/*.{css,scss}',
-  output: 'src/cssVars.ts',
+  output: 'src/cssVars.ts',  // or 'src/cssVars.js' → generates .js + .d.ts
   exclude: ['**/vendor/**'],
   prefix: 'theme',
+  naming: 'snake',           // 'camelCase' | 'snake' | 'kebab'
 });
 ```
 

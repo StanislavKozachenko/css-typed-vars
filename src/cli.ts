@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
-import { scanVarNames } from './scanner.js';
-import { generateCode } from './generator.js';
+import { generate } from './index.js';
+import type { NamingConvention } from './generator.js';
 
 const args = process.argv.slice(2);
 const getArg = (flag: string): string | undefined => {
@@ -18,6 +18,7 @@ interface Config {
   output?: string;
   exclude?: string | string[];
   prefix?: string;
+  naming?: NamingConvention;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -48,12 +49,10 @@ async function run(
   output: string,
   exclude?: string | string[],
   prefix?: string,
+  naming?: NamingConvention,
 ): Promise<void> {
-  const names = await scanVarNames(input, exclude);
-  const code = generateCode(names, prefix);
-  await mkdir(dirname(resolve(output)), { recursive: true });
-  await writeFile(output, code, 'utf8');
-  console.log(`Generated ${names.length} variables → ${output}`);
+  await generate({ input, output, exclude, prefix, naming });
+  console.log(`Generated → ${output}`);
 }
 
 async function main(): Promise<void> {
@@ -62,6 +61,7 @@ async function main(): Promise<void> {
   const output = getArg('--output') ?? config.output;
   const exclude = getArg('--exclude') ?? config.exclude;
   const prefix = getArg('--prefix') ?? config.prefix;
+  const naming = (getArg('--naming') ?? config.naming) as NamingConvention | undefined;
 
   if (!input || !output) {
     console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch]');
@@ -69,13 +69,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await run(input, output, exclude, prefix);
+  await run(input, output, exclude, prefix, naming);
 
   if (watchMode) {
     const patterns = Array.isArray(input) ? input : [input];
     watch(patterns).on('change', (file) => {
       console.log(`Changed: ${file}`);
-      run(input, output, exclude, prefix).catch(console.error);
+      run(input, output, exclude, prefix, naming).catch(console.error);
     });
     console.log('Watching for changes...');
   }
