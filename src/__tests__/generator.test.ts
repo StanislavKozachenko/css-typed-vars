@@ -32,6 +32,28 @@ describe('generateCode', () => {
     expect(result).toContain('} as const;');
     expect(result).not.toContain('var(--');
   });
+
+  it('applies prefix to generated keys', () => {
+    const result = generateCode(['--color-primary', '--spacing-md'], 'theme');
+    expect(result).toContain("themeColorPrimary: 'var(--color-primary)'");
+    expect(result).toContain("themeSpacingMd: 'var(--spacing-md)'");
+  });
+
+  it('capitalizes first letter of base key when prefix is set', () => {
+    const result = generateCode(['--color-primary'], 'ui');
+    expect(result).toContain("uiColorPrimary: 'var(--color-primary)'");
+    expect(result).not.toContain("uicolorPrimary:");
+  });
+
+  it('produces unchanged keys when prefix is empty string', () => {
+    const result = generateCode(['--color-primary'], '');
+    expect(result).toContain("colorPrimary: 'var(--color-primary)'");
+  });
+
+  it('produces unchanged keys when prefix is undefined', () => {
+    const result = generateCode(['--color-primary'], undefined);
+    expect(result).toContain("colorPrimary: 'var(--color-primary)'");
+  });
 });
 
 describe('generateDeclaration', () => {
@@ -51,5 +73,10 @@ describe('generateDeclaration', () => {
     const result = generateDeclaration([]);
     expect(result).toContain('export declare const cssVars: {');
     expect(result).not.toContain('var(--');
+  });
+
+  it('applies prefix in declaration output', () => {
+    const result = generateDeclaration(['--color-primary'], 'theme');
+    expect(result).toContain("themeColorPrimary: 'var(--color-primary)';");
   });
 });

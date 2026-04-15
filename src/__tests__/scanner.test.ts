@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { scanVarNames } from '../scanner.js';
@@ -11,6 +11,8 @@ beforeAll(async () => {
   await writeFile(join(dir, 'a.css'), ':root { --color-primary: red; --spacing-md: 8px; }');
   await writeFile(join(dir, 'b.css'), ':root { --color-secondary: blue; --spacing-md: 8px; }');
   await writeFile(join(dir, 'other.txt'), ':root { --ignored: 1px; }');
+  await mkdir(join(dir, 'vendor'));
+  await writeFile(join(dir, 'vendor', 'lib.css'), ':root { --vendor-color: #fff; }');
 });
 
 afterAll(async () => {
@@ -44,5 +46,22 @@ describe('scanVarNames', () => {
     const result = await scanVarNames([`${dir}/a.css`, `${dir}/b.css`]);
     expect(result).toContain('--color-primary');
     expect(result).toContain('--color-secondary');
+  });
+
+  it('excludes files matching exclude pattern', async () => {
+    const result = await scanVarNames(`${dir}/**/*.css`, `${dir}/vendor/**`);
+    expect(result).not.toContain('--vendor-color');
+    expect(result).toContain('--color-primary');
+  });
+
+  it('excludes files matching array of exclude patterns', async () => {
+    const result = await scanVarNames(`${dir}/**/*.css`, [`${dir}/vendor/**`]);
+    expect(result).not.toContain('--vendor-color');
+  });
+
+  it('returns all files when exclude is undefined', async () => {
+    const result = await scanVarNames(`${dir}/**/*.css`);
+    expect(result).toContain('--vendor-color');
+    expect(result).toContain('--color-primary');
   });
 });

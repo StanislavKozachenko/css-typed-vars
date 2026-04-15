@@ -16,6 +16,8 @@ const watchMode = args.includes('--watch');
 interface Config {
   input?: string | string[];
   output?: string;
+  exclude?: string | string[];
+  prefix?: string;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -41,9 +43,14 @@ async function loadConfig(): Promise<Config> {
   return {};
 }
 
-async function run(input: string | string[], output: string): Promise<void> {
-  const names = await scanVarNames(input);
-  const code = generateCode(names);
+async function run(
+  input: string | string[],
+  output: string,
+  exclude?: string | string[],
+  prefix?: string,
+): Promise<void> {
+  const names = await scanVarNames(input, exclude);
+  const code = generateCode(names, prefix);
   await mkdir(dirname(resolve(output)), { recursive: true });
   await writeFile(output, code, 'utf8');
   console.log(`Generated ${names.length} variables → ${output}`);
@@ -53,6 +60,8 @@ async function main(): Promise<void> {
   const config = await loadConfig();
   const input = getArg('--input') ?? config.input;
   const output = getArg('--output') ?? config.output;
+  const exclude = getArg('--exclude') ?? config.exclude;
+  const prefix = getArg('--prefix') ?? config.prefix;
 
   if (!input || !output) {
     console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch]');
@@ -60,13 +69,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await run(input, output);
+  await run(input, output, exclude, prefix);
 
   if (watchMode) {
     const patterns = Array.isArray(input) ? input : [input];
     watch(patterns).on('change', (file) => {
       console.log(`Changed: ${file}`);
-      run(input, output).catch(console.error);
+      run(input, output, exclude, prefix).catch(console.error);
     });
     console.log('Watching for changes...');
   }

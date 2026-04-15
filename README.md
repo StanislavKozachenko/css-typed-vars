@@ -108,10 +108,17 @@ npx css-typed-vars --input "src/styles/**/*.css" --output src/cssVars.ts
 npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts --watch
 ```
 
+```sh
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/vendor/**"
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme
+```
+
 | Flag | Description |
 |------|-------------|
 | `--input` | Glob pattern for CSS/SCSS/Less files |
 | `--output` | Path to the generated TypeScript file |
+| `--exclude` | Glob pattern for files to exclude (single value; use config file for multiple) |
+| `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--watch` | Watch for file changes and regenerate |
 
 CLI flags override values from the config file.
@@ -123,6 +130,18 @@ The CLI looks for a config file in the current working directory (in order):
 1. `css-typed-vars.config.js`
 2. `css-typed-vars.config.mjs`
 3. `css-typed-vars.config.json`
+
+All options are supported in the config file:
+
+```js
+// css-typed-vars.config.js
+export default {
+  input: 'src/styles/**/*.{css,scss}',
+  output: 'src/cssVars.ts',
+  exclude: ['**/vendor/**', '**/node_modules/**'],
+  prefix: 'theme',
+};
+```
 
 ---
 
@@ -215,6 +234,8 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `input` | `string \| string[]` | — | Glob pattern for CSS/SCSS/Less files |
+| `exclude` | `string \| string[]` | — | Glob pattern(s) for files to exclude |
+| `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
 
 ---
@@ -268,6 +289,8 @@ import { generate } from 'css-typed-vars';
 await generate({
   input: 'src/styles/**/*.{css,scss}',
   output: 'src/cssVars.ts',
+  exclude: ['**/vendor/**'],
+  prefix: 'theme',
 });
 ```
 

@@ -4,8 +4,13 @@ function toCamelCase(cssVarName: string): string {
     .replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
-export function generateCode(varNames: string[]): string {
-  const entries = varNames.map(name => `  ${toCamelCase(name)}: 'var(${name})',`);
+function applyPrefix(key: string, prefix: string | undefined): string {
+  if (!prefix) return key;
+  return prefix + key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+export function generateCode(varNames: string[], prefix?: string): string {
+  const entries = varNames.map(name => `  ${applyPrefix(toCamelCase(name), prefix)}: 'var(${name})',`);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -17,8 +22,8 @@ export function generateCode(varNames: string[]): string {
   ].join('\n');
 }
 
-export function generateJs(varNames: string[]): string {
-  const entries = varNames.map(name => `  ${toCamelCase(name)}: 'var(${name})',`);
+export function generateJs(varNames: string[], prefix?: string): string {
+  const entries = varNames.map(name => `  ${applyPrefix(toCamelCase(name), prefix)}: 'var(${name})',`);
   return [
     'export const cssVars = {',
     ...entries,
@@ -27,8 +32,8 @@ export function generateJs(varNames: string[]): string {
   ].join('\n');
 }
 
-export function generateDeclaration(varNames: string[]): string {
-  const entries = varNames.map(name => `  ${toCamelCase(name)}: 'var(${name})';`);
+export function generateDeclaration(varNames: string[], prefix?: string): string {
+  const entries = varNames.map(name => `  ${applyPrefix(toCamelCase(name), prefix)}: 'var(${name})';`);
   return [
     'export declare const cssVars: {',
     ...entries,

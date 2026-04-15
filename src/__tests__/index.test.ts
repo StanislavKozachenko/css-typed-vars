@@ -40,4 +40,30 @@ describe('generate', () => {
     const result = await readFile(output, 'utf8');
     expect(result).toContain('export const cssVars');
   });
+
+  it('excludes files matching exclude pattern', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const subdir = join(dir, 'vendor');
+    await mkdir(subdir, { recursive: true });
+    await writeFile(join(subdir, 'lib.css'), ':root { --vendor-var: 1px; }');
+
+    const output = join(dir, 'excludeVars.ts');
+    await generate({ input: `${dir}/**/*.css`, output, exclude: `${dir}/vendor/**` });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).not.toContain('--vendor-var');
+  });
+
+  it('applies prefix to generated output', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'prefix-test.css');
+    const output = join(dir, 'prefixVars.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output, prefix: 'theme' });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("themeColorPrimary: 'var(--color-primary)'");
+    expect(result).not.toContain("colorPrimary: 'var(--color-primary)'");
+  });
 });
