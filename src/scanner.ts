@@ -5,6 +5,7 @@ import { parseVarNames } from './parser.js';
 export async function scanVarNames(
   patterns: string | string[],
   exclude?: string | string[],
+  selectors?: string[],
 ): Promise<string[]> {
   const normalized = (Array.isArray(patterns) ? patterns : [patterns]).map((p) =>
     p.replace(/\\/g, '/'),
@@ -17,7 +18,7 @@ export async function scanVarNames(
   await Promise.all(
     files.map(async (file) => {
       const css = await readFile(file, 'utf8');
-      for (const name of parseVarNames(css)) {
+      for (const name of parseVarNames(css, selectors)) {
         all.add(name);
       }
     }),

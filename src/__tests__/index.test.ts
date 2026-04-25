@@ -82,6 +82,19 @@ describe('generate', () => {
     expect(result).toContain("color_primary: 'var(--color-primary)'");
   });
 
+  it('picks up variables from additional selectors', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'selectors-test.css');
+    const output = join(dir, 'selectorVars.ts');
+    await writeFile(input, ':root { --color-primary: red; } .dark { --color-bg: #111; }');
+
+    await generate({ input, output, selectors: ['.dark'] });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("colorPrimary: 'var(--color-primary)'");
+    expect(result).toContain("colorBg: 'var(--color-bg)'");
+  });
+
   it('applies prefix to generated output', async () => {
     const { writeFile } = await import('node:fs/promises');
     const input = join(dir, 'prefix-test.css');

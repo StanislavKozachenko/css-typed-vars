@@ -112,6 +112,7 @@ npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts 
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/vendor/**"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme --naming snake
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark"
 ```
 
 | Flag | Description |
@@ -121,6 +122,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .
 | `--exclude` | Glob pattern for files to exclude (single value; use config file for multiple) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab` |
+| `--selector` | Extra CSS selector to scan for variables (single value; use config file for multiple) |
 | `--watch` | Watch for file changes and regenerate |
 | `--version`, `-v` | Print the version number and exit |
 
@@ -144,6 +146,7 @@ export default {
   exclude: ['**/vendor/**', '**/node_modules/**'],
   prefix: 'theme',
   naming: 'snake', // 'camelCase' | 'snake' | 'kebab'
+  selectors: ['.dark', '[data-theme="dark"]'],
 };
 ```
 
@@ -241,6 +244,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `exclude` | `string \| string[]` | — | Glob pattern(s) for files to exclude |
 | `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
 | `naming` | `'camelCase' \| 'snake' \| 'kebab'` | `'camelCase'` | Key naming convention |
+| `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
 
 ---
@@ -297,6 +301,7 @@ await generate({
   exclude: ['**/vendor/**'],
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab'
+  selectors: ['.dark', '[data-theme="dark"]'],
 });
 ```
 
@@ -314,7 +319,7 @@ import { parseVarNames, generateCode, scanVarNames } from 'css-typed-vars';
 | SCSS | `.scss` |
 | Less | `.less` |
 
-Variables must be declared inside a `:root {}` block. Attribute selectors are supported (e.g. `:root[data-theme="dark"]`).
+By default, variables are scanned from `:root {}` blocks (including attribute selectors like `:root[data-theme="dark"]`). Use the `selectors` option to also pick up variables from other selectors such as `.dark` or `[data-theme="dark"]`.
 
 ## Contributing
 

@@ -69,4 +69,39 @@ describe('parseVarNames', () => {
     const css = `:root { --colorPrimary: red; --color_secondary: blue; }`;
     expect(parseVarNames(css)).toEqual(['--colorPrimary', '--color_secondary']);
   });
+
+  it('picks up variables from additional selectors', () => {
+    const css = `
+      :root { --color-primary: red; }
+      .dark { --color-primary: #000; --color-bg: #111; }
+    `;
+    const result = parseVarNames(css, ['.dark']);
+    expect(result).toContain('--color-primary');
+    expect(result).toContain('--color-bg');
+  });
+
+  it('without selectors option still ignores non-root blocks', () => {
+    const css = `
+      :root { --color-primary: red; }
+      .dark { --color-bg: #111; }
+    `;
+    expect(parseVarNames(css)).toEqual(['--color-primary']);
+  });
+
+  it('supports attribute selector syntax', () => {
+    const css = `[data-theme="dark"] { --color-bg: #111; --color-text: #fff; }`;
+    const result = parseVarNames(css, ['[data-theme="dark"]']);
+    expect(result).toContain('--color-bg');
+    expect(result).toContain('--color-text');
+  });
+
+  it('deduplicates variables across :root and extra selectors', () => {
+    const css = `
+      :root { --color: red; }
+      .dark { --color: #000; --extra: 1px; }
+    `;
+    const result = parseVarNames(css, ['.dark']);
+    expect(result.filter(n => n === '--color')).toHaveLength(1);
+    expect(result).toContain('--extra');
+  });
 });
