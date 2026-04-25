@@ -1,3 +1,5 @@
+<img src="https://repository-images.githubusercontent.com/1204912196/ef5412c5-0846-4b94-bf5d-811202144eb9" alt="css-typed-vars" />
+
 <h1>css-typed-vars</h1>
 <p>Generate TypeScript typed constants from CSS custom properties</p>
 
