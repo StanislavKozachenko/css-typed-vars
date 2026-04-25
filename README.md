@@ -122,6 +122,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab` |
 | `--watch` | Watch for file changes and regenerate |
+| `--version`, `-v` | Print the version number and exit |
 
 CLI flags override values from the config file.
 

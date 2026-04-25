@@ -56,6 +56,12 @@ async function run(
 }
 
 async function main(): Promise<void> {
+  if (args.includes('--version') || args.includes('-v')) {
+    const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    console.log(pkg.version);
+    process.exit(0);
+  }
+
   const config = await loadConfig();
   const input = getArg('--input') ?? config.input;
   const output = getArg('--output') ?? config.output;
@@ -73,10 +79,14 @@ async function main(): Promise<void> {
 
   if (watchMode) {
     const patterns = Array.isArray(input) ? input : [input];
-    watch(patterns).on('change', (file) => {
-      console.log(`Changed: ${file}`);
+    const makeHandler = (label: string) => (file: string) => {
+      console.log(`${label}: ${file}`);
       run(input, output, exclude, prefix, naming).catch(console.error);
-    });
+    };
+    watch(patterns)
+      .on('change', makeHandler('Changed'))
+      .on('add', makeHandler('Added'))
+      .on('unlink', makeHandler('Removed'));
     console.log('Watching for changes...');
   }
 }

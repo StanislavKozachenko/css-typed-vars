@@ -18,6 +18,9 @@ export interface GenerateOptions {
 
 export async function generate(options: GenerateOptions): Promise<void> {
   const names = await scanVarNames(options.input, options.exclude);
+  if (names.length === 0) {
+    console.warn('css-typed-vars: no CSS custom properties found.');
+  }
   const outPath = resolve(options.output);
   await mkdir(dirname(outPath), { recursive: true });
 
