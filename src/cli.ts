@@ -19,6 +19,7 @@ interface Config {
   exclude?: string | string[];
   prefix?: string;
   naming?: NamingConvention;
+  selectors?: string[];
 }
 
 async function loadConfig(): Promise<Config> {
@@ -50,8 +51,9 @@ async function run(
   exclude?: string | string[],
   prefix?: string,
   naming?: NamingConvention,
+  selectors?: string[],
 ): Promise<void> {
-  await generate({ input, output, exclude, prefix, naming });
+  await generate({ input, output, exclude, prefix, naming, selectors });
   console.log(`Generated → ${output}`);
 }
 
@@ -68,6 +70,8 @@ async function main(): Promise<void> {
   const exclude = getArg('--exclude') ?? config.exclude;
   const prefix = getArg('--prefix') ?? config.prefix;
   const naming = (getArg('--naming') ?? config.naming) as NamingConvention | undefined;
+  const selectorArg = getArg('--selector');
+  const selectors = selectorArg ? [selectorArg] : config.selectors;
 
   if (!input || !output) {
     console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch]');
@@ -75,13 +79,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await run(input, output, exclude, prefix, naming);
+  await run(input, output, exclude, prefix, naming, selectors);
 
   if (watchMode) {
     const patterns = Array.isArray(input) ? input : [input];
     const makeHandler = (label: string) => (file: string) => {
       console.log(`${label}: ${file}`);
-      run(input, output, exclude, prefix, naming).catch(console.error);
+      run(input, output, exclude, prefix, naming, selectors).catch(console.error);
     };
     watch(patterns)
       .on('change', makeHandler('Changed'))

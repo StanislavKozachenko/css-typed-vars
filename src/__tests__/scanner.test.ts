@@ -11,6 +11,7 @@ beforeAll(async () => {
   await writeFile(join(dir, 'a.css'), ':root { --color-primary: red; --spacing-md: 8px; }');
   await writeFile(join(dir, 'b.css'), ':root { --color-secondary: blue; --spacing-md: 8px; }');
   await writeFile(join(dir, 'other.txt'), ':root { --ignored: 1px; }');
+  await writeFile(join(dir, 'theme.css'), ':root { --color-primary: red; } .dark { --color-primary: #000; --dark-bg: #111; }');
   await mkdir(join(dir, 'vendor'));
   await writeFile(join(dir, 'vendor', 'lib.css'), ':root { --vendor-color: #fff; }');
 });
@@ -62,6 +63,18 @@ describe('scanVarNames', () => {
   it('returns all files when exclude is undefined', async () => {
     const result = await scanVarNames(`${dir}/**/*.css`);
     expect(result).toContain('--vendor-color');
+    expect(result).toContain('--color-primary');
+  });
+
+  it('picks up variables from additional selectors', async () => {
+    const result = await scanVarNames(`${dir}/theme.css`, undefined, ['.dark']);
+    expect(result).toContain('--color-primary');
+    expect(result).toContain('--dark-bg');
+  });
+
+  it('without selectors option ignores non-root blocks', async () => {
+    const result = await scanVarNames(`${dir}/theme.css`);
+    expect(result).not.toContain('--dark-bg');
     expect(result).toContain('--color-primary');
   });
 });

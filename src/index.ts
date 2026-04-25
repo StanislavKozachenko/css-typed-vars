@@ -14,10 +14,11 @@ export interface GenerateOptions {
   exclude?: string | string[];
   prefix?: string;
   naming?: NamingConvention;
+  selectors?: string[];
 }
 
 export async function generate(options: GenerateOptions): Promise<void> {
-  const names = await scanVarNames(options.input, options.exclude);
+  const names = await scanVarNames(options.input, options.exclude, options.selectors);
   if (names.length === 0) {
     console.warn('css-typed-vars: no CSS custom properties found.');
   }

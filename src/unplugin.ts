@@ -16,6 +16,7 @@ export interface Options {
   exclude?: string | string[];
   prefix?: string;
   naming?: NamingConvention;
+  selectors?: string[];
 }
 
 const VIRTUAL_ID = 'css-typed-vars/vars';
@@ -41,7 +42,7 @@ export default createUnplugin((options: Options) => ({
       server.watcher.on('change', async (file: string) => {
         if (!/\.(css|scss|less)$/i.test(file)) return;
 
-        const names = await scanVarNames(options.input, options.exclude);
+        const names = await scanVarNames(options.input, options.exclude, options.selectors);
 
         const dtsPath = getDtsPath(options);
         if (dtsPath) {
@@ -60,7 +61,7 @@ export default createUnplugin((options: Options) => ({
   async buildStart() {
     const dtsPath = getDtsPath(options);
     if (!dtsPath) return;
-    const names = await scanVarNames(options.input, options.exclude);
+    const names = await scanVarNames(options.input, options.exclude, options.selectors);
     await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
   },
 
@@ -70,7 +71,7 @@ export default createUnplugin((options: Options) => ({
 
   async load(id: string) {
     if (id === RESOLVED_ID) {
-      const names = await scanVarNames(options.input, options.exclude);
+      const names = await scanVarNames(options.input, options.exclude, options.selectors);
       return generateJs(names, options.prefix, options.naming);
     }
   },
