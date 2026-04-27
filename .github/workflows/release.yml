@@ -1,39 +1,72 @@
 name: Release
+
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
 jobs:
   release:
+    name: Bump version & publish
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-      - run: npm ci && npm run build
-      - name: Check version change
-        id: version
+          node-version: '24'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Configure git
         run: |
-          CURRENT=$(node -p "require('./package.json').version")
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          if [ "$LAST_TAG" = "none" ] || [ "v$CURRENT" != "$LAST_TAG" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "version=$CURRENT" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
+          git config user.name "Stanislav Kozachenko"
+          git config user.email "stanislav.03@list.ru"
+
+      - name: Bump version
+        run: npm version ${{ github.event.inputs.bump }} --no-git-tag-version
+
+      - name: Get new version
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        run: gh release create "v${{ steps.version.outputs.value }}" --title "v${{ steps.version.outputs.value }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish to npm
-        if: steps.version.outputs.changed == 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Create GitHub Release
-        if: steps.version.outputs.changed == 'true'
-        run: gh release create "v${{ steps.version.outputs.version }}" --generate-notes
+
+      - name: Open version bump PR
+        run: |
+          BRANCH="release/v${{ steps.version.outputs.value }}"
+          git checkout -b "$BRANCH"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.value }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: bump version to ${{ steps.version.outputs.value }}" \
+            --body "Version bump after release v${{ steps.version.outputs.value }}." \
+            --base main
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
