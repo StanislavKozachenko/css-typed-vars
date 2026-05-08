@@ -77,4 +77,11 @@ describe('scanVarNames', () => {
     expect(result).not.toContain('--dark-bg');
     expect(result).toContain('--color-primary');
   });
+
+  it('returns variables in stable sorted order across multiple runs', async () => {
+    const first = await scanVarNames(`${dir}/*.css`);
+    const second = await scanVarNames(`${dir}/*.css`);
+    expect(first).toEqual(second);
+    expect(first).toEqual([...first].sort());
+  });
 });

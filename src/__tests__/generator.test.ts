@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCode, generateDeclaration } from '../generator.js';
+import { generateCode, generateDeclaration, generateJs } from '../generator.js';
 
 describe('generateCode', () => {
   it('generates typed constants from var names', () => {
@@ -75,6 +75,45 @@ describe('generateCode', () => {
   it('kebab naming with prefix uses hyphen separator', () => {
     const result = generateCode(['--color-primary'], 'theme', 'kebab');
     expect(result).toContain("'theme-color-primary': 'var(--color-primary)'");
+  });
+});
+
+describe('generateJs', () => {
+  it('generates plain JS export without as const or CssVarName type', () => {
+    const result = generateJs(['--color-primary', '--spacing-md']);
+    expect(result).toContain("colorPrimary: 'var(--color-primary)'");
+    expect(result).toContain("spacingMd: 'var(--spacing-md)'");
+    expect(result).toContain('export const cssVars = {');
+    expect(result).toContain('};');
+    expect(result).not.toContain('as const');
+    expect(result).not.toContain('CssVarName');
+  });
+
+  it('includes generated header comment', () => {
+    const result = generateJs(['--color-primary']);
+    expect(result).toContain('// generated — do not edit');
+  });
+
+  it('returns empty cssVars for empty input', () => {
+    const result = generateJs([]);
+    expect(result).toContain('export const cssVars = {');
+    expect(result).toContain('};');
+    expect(result).not.toContain('var(--');
+  });
+
+  it('applies prefix to generated keys', () => {
+    const result = generateJs(['--color-primary'], 'theme');
+    expect(result).toContain("themeColorPrimary: 'var(--color-primary)'");
+  });
+
+  it('snake naming converts hyphens to underscores', () => {
+    const result = generateJs(['--color-primary'], undefined, 'snake');
+    expect(result).toContain("color_primary: 'var(--color-primary)'");
+  });
+
+  it('kebab naming keeps hyphens as quoted key', () => {
+    const result = generateJs(['--color-primary'], undefined, 'kebab');
+    expect(result).toContain("'color-primary': 'var(--color-primary)'");
   });
 });
 
