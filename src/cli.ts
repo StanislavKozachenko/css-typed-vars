@@ -11,6 +11,13 @@ const getArg = (flag: string): string | undefined => {
   const i = args.indexOf(flag);
   return i !== -1 ? args[i + 1] : undefined;
 };
+const getArgs = (flag: string): string[] => {
+  const result: string[] = [];
+  for (let i = 0; i < args.length - 1; i++) {
+    if (args[i] === flag) result.push(args[i + 1]);
+  }
+  return result;
+};
 const watchMode = args.includes('--watch');
 
 interface Config {
@@ -70,8 +77,8 @@ async function main(): Promise<void> {
   const exclude = getArg('--exclude') ?? config.exclude;
   const prefix = getArg('--prefix') ?? config.prefix;
   const naming = (getArg('--naming') ?? config.naming) as NamingConvention | undefined;
-  const selectorArg = getArg('--selector');
-  const selectors = selectorArg ? [selectorArg] : config.selectors;
+  const selectorArgs = getArgs('--selector');
+  const selectors = selectorArgs.length > 0 ? selectorArgs : config.selectors;
 
   if (!input || !output) {
     console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch]');
