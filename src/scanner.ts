@@ -23,5 +23,5 @@ export async function scanVarNames(
       }
     }),
   );
-  return [...all];
+  return [...all].sort();
 }
