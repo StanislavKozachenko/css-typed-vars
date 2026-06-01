@@ -32,47 +32,53 @@ function getDtsPath(options: Options): string | null {
     : join(__dirname, 'generated.d.ts');
 }
 
-export default createUnplugin((options: Options) => ({
-  name: 'css-typed-vars',
+export default createUnplugin((options: Options) => {
+  let cachedNames: Promise<string[]> | null = null;
 
-  vite: {
-    enforce: 'pre' as const,
+  return {
+    name: 'css-typed-vars',
 
-    configureServer(server: any) {
-      server.watcher.on('change', async (file: string) => {
-        if (!/\.(css|scss|less)$/i.test(file)) return;
+    vite: {
+      enforce: 'pre' as const,
 
-        const names = await scanVarNames(options.input, options.exclude, options.selectors);
+      configureServer(server: any) {
+        server.watcher.on('change', async (file: string) => {
+          if (!/\.(css|scss|less)$/i.test(file)) return;
 
-        const dtsPath = getDtsPath(options);
-        if (dtsPath) {
-          await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
-        }
+          cachedNames = null;
+          const names = await scanVarNames(options.input, options.exclude, options.selectors);
 
-        const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
-        if (mod) {
-          server.moduleGraph.invalidateModule(mod);
-          server.ws.send({ type: 'full-reload' });
-        }
-      });
+          const dtsPath = getDtsPath(options);
+          if (dtsPath) {
+            await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
+          }
+
+          const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
+          if (mod) {
+            server.moduleGraph.invalidateModule(mod);
+            server.ws.send({ type: 'full-reload' });
+          }
+        });
+      },
     },
-  },
 
-  async buildStart() {
-    const dtsPath = getDtsPath(options);
-    if (!dtsPath) return;
-    const names = await scanVarNames(options.input, options.exclude, options.selectors);
-    await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
-  },
+    async buildStart() {
+      cachedNames = scanVarNames(options.input, options.exclude, options.selectors);
+      const dtsPath = getDtsPath(options);
+      if (!dtsPath) return;
+      const names = await cachedNames;
+      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
+    },
 
-  resolveId(id: string) {
-    if (id === VIRTUAL_ID) return RESOLVED_ID;
-  },
+    resolveId(id: string) {
+      if (id === VIRTUAL_ID) return RESOLVED_ID;
+    },
 
-  async load(id: string) {
-    if (id === RESOLVED_ID) {
-      const names = await scanVarNames(options.input, options.exclude, options.selectors);
-      return generateJs(names, options.prefix, options.naming);
-    }
-  },
-}));
+    async load(id: string) {
+      if (id === RESOLVED_ID) {
+        const names = await (cachedNames ?? scanVarNames(options.input, options.exclude, options.selectors));
+        return generateJs(names, options.prefix, options.naming);
+      }
+    },
+  };
+});
