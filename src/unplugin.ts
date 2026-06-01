@@ -42,7 +42,7 @@ export default createUnplugin((options: Options) => {
       enforce: 'pre' as const,
 
       configureServer(server: any) {
-        server.watcher.on('change', async (file: string) => {
+        const handle = async (file: string) => {
           if (!/\.(css|scss|less)$/i.test(file)) return;
 
           cachedNames = null;
@@ -58,7 +58,11 @@ export default createUnplugin((options: Options) => {
             server.moduleGraph.invalidateModule(mod);
             server.ws.send({ type: 'full-reload' });
           }
-        });
+        };
+
+        server.watcher.on('change', handle);
+        server.watcher.on('add', handle);
+        server.watcher.on('unlink', handle);
       },
     },
 
