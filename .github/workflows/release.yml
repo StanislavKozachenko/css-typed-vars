@@ -47,6 +47,54 @@ jobs:
         id: version
         run: echo "value=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
+      - name: Update CHANGELOG
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          DATE=$(date +%Y-%m-%d)
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          get_section() {
+            local prefix=$1
+            if [ -n "$LAST_TAG" ]; then
+              git log "${LAST_TAG}..HEAD" --pretty=format:"%s" \
+                | grep -E "^${prefix}(\([^)]+\))?:" \
+                | sed -E "s/^${prefix}(\([^)]+\))?: /- /" || true
+            fi
+          }
+
+          ADDED=$(get_section "feat")
+          FIXED=$(get_section "fix")
+
+          {
+            echo "## [${VERSION}] - ${DATE}"
+            echo ""
+            if [ -n "$ADDED" ]; then
+              echo "### Added"
+              echo ""
+              echo "$ADDED"
+              echo ""
+            fi
+            if [ -n "$FIXED" ]; then
+              echo "### Fixed"
+              echo ""
+              echo "$FIXED"
+              echo ""
+            fi
+            echo "---"
+            echo ""
+          } > /tmp/changelog-entry.md
+
+          python3 - <<'PYEOF'
+          with open('CHANGELOG.md', 'r') as f:
+              content = f.read()
+          with open('/tmp/changelog-entry.md', 'r') as f:
+              entry = f.read()
+          idx = content.index('---\n') + 4
+          content = content[:idx] + '\n' + entry + content[idx:]
+          with open('CHANGELOG.md', 'w') as f:
+              f.write(content)
+          PYEOF
+
       - name: Create GitHub release
         run: gh release create "v${{ steps.version.outputs.value }}" --title "v${{ steps.version.outputs.value }}" --generate-notes
         env:
@@ -61,7 +109,7 @@ jobs:
         run: |
           BRANCH="release/v${{ steps.version.outputs.value }}"
           git checkout -b "$BRANCH"
-          git add package.json package-lock.json
+          git add package.json package-lock.json CHANGELOG.md
           git commit -m "chore: bump version to ${{ steps.version.outputs.value }}"
           git push origin "$BRANCH"
           gh pr create \
