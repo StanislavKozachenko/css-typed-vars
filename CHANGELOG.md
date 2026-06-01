@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.3] - 2026-06-01
+
+### Fixed
+
+- Vite plugin now reacts to `add` and `unlink` watcher events — adding or deleting a CSS file in dev server no longer requires a manual restart
+- Vite plugin no longer runs two full file-system scans per build — `buildStart` and `load` now share a cached `scanVarNames` result
+
+---
+
 ## [0.4.2] - 2026-05-08
 
 ### Fixed
