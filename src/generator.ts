@@ -2,9 +2,11 @@ export type NamingConvention = 'camelCase' | 'snake' | 'kebab';
 
 function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): string {
   const stripped = cssVarName.replace(/^--/, '');
-  if (naming === 'snake') return stripped.replace(/-/g, '_');
   if (naming === 'kebab') return stripped;
-  return stripped.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  const key = naming === 'snake'
+    ? stripped.replace(/-/g, '_')
+    : stripped.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  return /^\d/.test(key) ? `_${key}` : key;
 }
 
 function applyPrefix(key: string, prefix: string | undefined, naming: NamingConvention = 'camelCase'): string {
