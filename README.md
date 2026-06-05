@@ -121,7 +121,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".d
 |------|-------------|
 | `--input` | Glob pattern for CSS/SCSS/Less files |
 | `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside |
-| `--exclude` | Glob pattern for files to exclude (single value; use config file for multiple) |
+| `--exclude` | Glob pattern for files to exclude (repeatable: `--exclude "**/a/**" --exclude "**/b/**"`) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab` |
 | `--selector` | Extra CSS selector to scan for variables (single value; use config file for multiple) |
