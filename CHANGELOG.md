@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.4.4] - 2026-06-05
 
+### Fixed
+
+- Generator now prefixes keys that start with a digit with `_` (e.g. `--1st-color` → `_1stColor`) — previously generated invalid JS identifiers
+- CLI `--exclude` flag now collects all occurrences; `--exclude "**/a/**" --exclude "**/b/**"` previously dropped all but the first
+
+### Changed
+
+- Release workflow now includes `refactor`, `perf`, `docs`, and `ci` commits in CHANGELOG under `### Changed`
+
 ---
 
 
