@@ -76,6 +76,22 @@ describe('generateCode', () => {
     const result = generateCode(['--color-primary'], 'theme', 'kebab');
     expect(result).toContain("'theme-color-primary': 'var(--color-primary)'");
   });
+
+  it('prefixes digit-starting key with underscore (camelCase)', () => {
+    const result = generateCode(['--1st-color', '--2nd-item']);
+    expect(result).toContain("_1stColor: 'var(--1st-color)'");
+    expect(result).toContain("_2ndItem: 'var(--2nd-item)'");
+  });
+
+  it('prefixes digit-starting key with underscore (snake)', () => {
+    const result = generateCode(['--1st-color'], undefined, 'snake');
+    expect(result).toContain("_1st_color: 'var(--1st-color)'");
+  });
+
+  it('does not prefix digit-starting key in kebab (already quoted)', () => {
+    const result = generateCode(['--1st-color'], undefined, 'kebab');
+    expect(result).toContain("'1st-color': 'var(--1st-color)'");
+  });
 });
 
 describe('generateJs', () => {
