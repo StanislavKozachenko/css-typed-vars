@@ -74,7 +74,8 @@ async function main(): Promise<void> {
   const config = await loadConfig();
   const input = getArg('--input') ?? config.input;
   const output = getArg('--output') ?? config.output;
-  const exclude = getArg('--exclude') ?? config.exclude;
+  const excludeArgs = getArgs('--exclude');
+  const exclude = excludeArgs.length > 0 ? excludeArgs : config.exclude;
   const prefix = getArg('--prefix') ?? config.prefix;
   const naming = (getArg('--naming') ?? config.naming) as NamingConvention | undefined;
   const selectorArgs = getArgs('--selector');
