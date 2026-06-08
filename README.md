@@ -114,7 +114,7 @@ npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts 
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/vendor/**"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme --naming snake
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
-npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark"
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
 ```
 
 | Flag | Description |
@@ -124,7 +124,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".d
 | `--exclude` | Glob pattern for files to exclude (repeatable: `--exclude "**/a/**" --exclude "**/b/**"`) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab` |
-| `--selector` | Extra CSS selector to scan for variables (single value; use config file for multiple) |
+| `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--watch` | Watch for file changes and regenerate |
 | `--version`, `-v` | Print the version number and exit |
 
