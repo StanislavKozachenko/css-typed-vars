@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.5] - 2026-06-08
+
+### Fixed
+
+- support multiple --input flags
+
+### Changed
+
+- fix --selector flag description in README
+- update CHANGELOG for v0.4.4
+- add fetch-depth: 0 to release checkout for CHANGELOG generation
+
+---
+
+
 ## [0.4.4] - 2026-06-05
 
 ### Fixed
