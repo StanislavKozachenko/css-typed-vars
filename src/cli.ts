@@ -72,7 +72,8 @@ async function main(): Promise<void> {
   }
 
   const config = await loadConfig();
-  const input = getArg('--input') ?? config.input;
+  const inputArgs = getArgs('--input');
+  const input = inputArgs.length > 0 ? inputArgs : config.input;
   const output = getArg('--output') ?? config.output;
   const excludeArgs = getArgs('--exclude');
   const exclude = excludeArgs.length > 0 ? excludeArgs : config.exclude;
