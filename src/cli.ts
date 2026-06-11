@@ -45,8 +45,10 @@ async function loadConfig(): Promise<Config> {
         const mod = await import(pathToFileURL(path).href) as { default: Config };
         return mod.default;
       }
-    } catch {
-      // file not found or parse error — try next
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') continue;
+      console.warn(`css-typed-vars: failed to load config "${file}": ${(err as Error).message}`);
     }
   }
   return {};
