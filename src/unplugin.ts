@@ -45,8 +45,8 @@ export default createUnplugin((options: Options) => {
         const handle = async (file: string) => {
           if (!/\.(css|scss|less)$/i.test(file)) return;
 
-          cachedNames = null;
-          const names = await scanVarNames(options.input, options.exclude, options.selectors);
+          cachedNames = scanVarNames(options.input, options.exclude, options.selectors);
+          const names = await cachedNames;
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
