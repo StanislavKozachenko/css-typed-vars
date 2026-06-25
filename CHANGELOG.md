@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.6] - 2026-06-25
+
+### Fixed
+
+- avoid redundant scan in configureServer watch handler
+- warn on malformed config file instead of silently ignoring it
+
+---
+
+
 ## [0.4.5] - 2026-06-08
 
 ### Fixed
