@@ -104,6 +104,14 @@ jobs:
               f.write(content)
           PYEOF
 
+      - name: Commit version bump to main
+        run: |
+          git add package.json package-lock.json CHANGELOG.md
+          git commit -m "chore: bump version to ${{ steps.version.outputs.value }}"
+          git push origin HEAD:main
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
       - name: Create GitHub release
         run: gh release create "v${{ steps.version.outputs.value }}" --title "v${{ steps.version.outputs.value }}" --generate-notes
         env:
@@ -111,17 +119,3 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public
-
-      - name: Open version bump PR
-        run: |
-          BRANCH="release/v${{ steps.version.outputs.value }}"
-          git checkout -b "$BRANCH"
-          git add package.json package-lock.json CHANGELOG.md
-          git commit -m "chore: bump version to ${{ steps.version.outputs.value }}"
-          git push origin "$BRANCH"
-          gh pr create \
-            --title "chore: bump version to ${{ steps.version.outputs.value }}" \
-            --body "Version bump after release v${{ steps.version.outputs.value }}." \
-            --base main
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
