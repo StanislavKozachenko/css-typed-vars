@@ -92,6 +92,22 @@ describe('generateCode', () => {
     const result = generateCode(['--1st-color'], undefined, 'kebab');
     expect(result).toContain("'1st-color': 'var(--1st-color)'");
   });
+
+  it('camelCase collapses consecutive dashes into single boundary', () => {
+    const result = generateCode(['--my--var']);
+    expect(result).toContain("myVar: 'var(--my--var)'");
+  });
+
+  it('snake collapses consecutive dashes into single underscore', () => {
+    const result = generateCode(['--my--var'], undefined, 'snake');
+    expect(result).toContain("my_var: 'var(--my--var)'");
+  });
+
+  it('snake does not produce duplicate keys for --my--var and --my-_var', () => {
+    const result = generateCode(['--my--var', '--my-_var'], undefined, 'snake');
+    expect(result).toContain("my_var: 'var(--my--var)'");
+    expect(result).toContain("my__var: 'var(--my-_var)'");
+  });
 });
 
 describe('generateJs', () => {

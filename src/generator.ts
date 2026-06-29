@@ -4,8 +4,8 @@ function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): stri
   const stripped = cssVarName.replace(/^--/, '');
   if (naming === 'kebab') return stripped;
   const key = naming === 'snake'
-    ? stripped.replace(/-/g, '_')
-    : stripped.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+    ? stripped.replace(/-+/g, '_')
+    : stripped.replace(/-+([a-z0-9])/g, (_, c: string) => c.toUpperCase()).replace(/-/g, '');
   return /^\d/.test(key) ? `_${key}` : key;
 }
 
