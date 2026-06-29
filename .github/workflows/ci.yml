@@ -5,28 +5,7 @@ on:
   pull_request:
     branches: [main]
 jobs:
-  changelog-check:
-    name: CHANGELOG pre-check
-    runs-on: ubuntu-latest
-    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check release readiness
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            exit 0
-          fi
-          COUNT=$(git log "${LAST_TAG}..HEAD" --pretty=format:"%s" \
-            | grep -cE "^(feat|fix|refactor|perf|docs|ci)(\([^)]+\))?:" || true)
-          if [ "$COUNT" -eq 0 ]; then
-            echo "No releasable commits since ${LAST_TAG} — release would produce an empty changelog"
-            exit 1
-          fi
-
-  ci:
+  test:
     name: Test & Build
     runs-on: ubuntu-latest
     steps:
@@ -38,3 +17,26 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  changelog-check:
+    name: CHANGELOG pre-check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for releasable commits since last tag
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
+
+          HAS=$(git log $RANGE --pretty=format:"%s" \
+            | grep -qE "^(feat|fix|refactor|perf|docs|ci)(\([^)]+\))?:" && echo yes || echo no)
+
+          if [ "$HAS" = "no" ]; then
+            echo "::error::No releasable commits (feat/fix/refactor/perf/docs/ci) found since ${LAST_TAG:-the beginning}. The next release run would emit an empty CHANGELOG."
+            exit 1
+          fi
+
+          echo "Releasable commits found since ${LAST_TAG:-the beginning} — release workflow will generate a non-empty CHANGELOG."
