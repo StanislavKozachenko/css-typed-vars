@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.8] - 2026-06-29
+
+### Fixed
+
+- validate --naming value and exit with error on invalid input
+- collapse consecutive dashes in camelCase and snake naming
+
+### Changed
+
+- use pull_request condition and cleaner check logic
+- split into two jobs, skip changelog check on version bump push
+
+---
+
+
 ## [0.4.7] - 2026-06-29
 
 ### Changed
