@@ -5,15 +5,14 @@ on:
   pull_request:
     branches: [main]
 jobs:
-  ci:
+  changelog-check:
+    name: CHANGELOG pre-check
     runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
       - name: Check release readiness
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
@@ -26,6 +25,15 @@ jobs:
             echo "No releasable commits since ${LAST_TAG} — release would produce an empty changelog"
             exit 1
           fi
+
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
