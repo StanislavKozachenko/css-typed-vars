@@ -80,7 +80,12 @@ async function main(): Promise<void> {
   const excludeArgs = getArgs('--exclude');
   const exclude = excludeArgs.length > 0 ? excludeArgs : config.exclude;
   const prefix = getArg('--prefix') ?? config.prefix;
-  const naming = (getArg('--naming') ?? config.naming) as NamingConvention | undefined;
+  const namingRaw = getArg('--naming') ?? config.naming;
+  if (namingRaw !== undefined && !['camelCase', 'snake', 'kebab'].includes(namingRaw)) {
+    console.error(`css-typed-vars: invalid --naming value "${namingRaw}". Valid values: camelCase, snake, kebab`);
+    process.exit(1);
+  }
+  const naming = namingRaw as NamingConvention | undefined;
   const selectorArgs = getArgs('--selector');
   const selectors = selectorArgs.length > 0 ? selectorArgs : config.selectors;
 
