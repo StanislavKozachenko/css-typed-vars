@@ -32,6 +32,19 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Check release readiness
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            exit 0
+          fi
+          COUNT=$(git log "${LAST_TAG}..HEAD" --pretty=format:"%s" \
+            | grep -cE "^(feat|fix|refactor|perf|docs|ci)(\([^)]+\))?:" || true)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "Nothing to release: no releasable commits since ${LAST_TAG}"
+            exit 1
+          fi
+
       - run: npm ci
       - run: npm run typecheck
       - run: npm test

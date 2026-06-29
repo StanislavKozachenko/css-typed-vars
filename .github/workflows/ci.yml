@@ -9,9 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Check release readiness
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            exit 0
+          fi
+          COUNT=$(git log "${LAST_TAG}..HEAD" --pretty=format:"%s" \
+            | grep -cE "^(feat|fix|refactor|perf|docs|ci)(\([^)]+\))?:" || true)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No releasable commits since ${LAST_TAG} — release would produce an empty changelog"
+            exit 1
+          fi
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
