@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.9] - 2026-07-20
+
+### Fixed
+
+- support --flag=value syntax
+- warn on duplicate keys after naming collision
+
+---
+
+
 ## [0.4.8] - 2026-06-29
 
 ### Fixed
