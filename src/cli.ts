@@ -6,7 +6,10 @@ import { watch } from 'chokidar';
 import { generate } from './index.js';
 import type { NamingConvention } from './generator.js';
 
-const args = process.argv.slice(2);
+const args = process.argv.slice(2).flatMap((arg) => {
+  const match = /^(--[\w-]+)=(.*)$/.exec(arg);
+  return match ? [match[1], match[2]] : [arg];
+});
 const getArg = (flag: string): string | undefined => {
   const i = args.indexOf(flag);
   return i !== -1 ? args[i + 1] : undefined;
