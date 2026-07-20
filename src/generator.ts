@@ -21,6 +21,24 @@ function formatKey(key: string, naming: NamingConvention = 'camelCase'): string 
   return key;
 }
 
+export function findKeyCollisions(
+  varNames: string[],
+  prefix?: string,
+  naming?: NamingConvention,
+): Map<string, string[]> {
+  const byKey = new Map<string, string[]>();
+  for (const name of varNames) {
+    const key = applyPrefix(toKey(name, naming), prefix, naming);
+    const existing = byKey.get(key);
+    if (existing) existing.push(name);
+    else byKey.set(key, [name]);
+  }
+  for (const [key, names] of byKey) {
+    if (names.length < 2) byKey.delete(key);
+  }
+  return byKey;
+}
+
 export function generateCode(varNames: string[], prefix?: string, naming?: NamingConvention): string {
   const entries = varNames.map(name => {
     const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
