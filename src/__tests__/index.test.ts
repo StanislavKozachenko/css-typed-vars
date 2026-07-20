@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -106,5 +106,20 @@ describe('generate', () => {
     const result = await readFile(output, 'utf8');
     expect(result).toContain("themeColorPrimary: 'var(--color-primary)'");
     expect(result).not.toContain("colorPrimary: 'var(--color-primary)'");
+  });
+
+  it('warns when generated keys collide', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'collision-test.css');
+    const output = join(dir, 'collisionVars.ts');
+    await writeFile(input, ':root { --my--var: 1px; --my-var: 2px; }');
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await generate({ input, output });
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('multiple CSS variables map to the same key "myVar" (--my--var, --my-var)'),
+    );
+    warn.mockRestore();
   });
 });
