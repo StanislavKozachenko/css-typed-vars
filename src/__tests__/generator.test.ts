@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCode, generateDeclaration, generateJs } from '../generator.js';
+import { generateCode, generateDeclaration, generateJs, findKeyCollisions } from '../generator.js';
 
 describe('generateCode', () => {
   it('generates typed constants from var names', () => {
@@ -107,6 +107,28 @@ describe('generateCode', () => {
     const result = generateCode(['--my--var', '--my-_var'], undefined, 'snake');
     expect(result).toContain("my_var: 'var(--my--var)'");
     expect(result).toContain("my__var: 'var(--my-_var)'");
+  });
+});
+
+describe('findKeyCollisions', () => {
+  it('detects --my--var, --my-var and --myVar colliding on the same camelCase key', () => {
+    const collisions = findKeyCollisions(['--my--var', '--my-var', '--myVar']);
+    expect(collisions.get('myVar')).toEqual(['--my--var', '--my-var', '--myVar']);
+  });
+
+  it('returns an empty map when no keys collide', () => {
+    const collisions = findKeyCollisions(['--color-primary', '--spacing-md']);
+    expect(collisions.size).toBe(0);
+  });
+
+  it('accounts for prefix and naming when detecting collisions', () => {
+    const collisions = findKeyCollisions(['--color-primary', '--spacing-md'], 'theme', 'snake');
+    expect(collisions.size).toBe(0);
+  });
+
+  it('detects collisions under snake naming too', () => {
+    const collisions = findKeyCollisions(['--my--var', '--my-var'], undefined, 'snake');
+    expect(collisions.get('my_var')).toEqual(['--my--var', '--my-var']);
   });
 });
 
