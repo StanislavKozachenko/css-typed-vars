@@ -51,6 +51,11 @@ describe('parseVarNames', () => {
     expect(parseVarNames(css)).toEqual(['--color-primary']);
   });
 
+  it('does not treat http:// or https:// URLs as comment starts', () => {
+    const css = `:root { --logo: url(http://example.com/logo.png); --color-primary: #3b82f6; }`;
+    expect(parseVarNames(css)).toEqual(['--logo', '--color-primary']);
+  });
+
   it('handles :root with attribute selector', () => {
     const css = `:root[data-theme="dark"] { --color-primary: #000; }`;
     expect(parseVarNames(css)).toEqual(['--color-primary']);

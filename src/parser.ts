@@ -1,7 +1,7 @@
 export function parseVarNames(css: string, selectors?: string[]): string[] {
   const stripped = css
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '');
+    .replace(/(?<!:)\/\/.*$/gm, '');
   const names = new Set<string>();
   const allSelectors = [':root', ...(selectors ?? [])];
   for (const sel of allSelectors) {
