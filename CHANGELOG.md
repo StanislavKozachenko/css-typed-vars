@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.10] - 2026-07-29
+
+### Fixed
+
+- do not treat // in http(s):// URLs as a comment start
+
+---
+
+
 ## [0.4.9] - 2026-07-20
 
 ### Fixed
