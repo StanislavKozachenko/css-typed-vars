@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.11] - 2026-08-03
+
+### Fixed
+
+- convert hyphenated prefix through the same case conversion as var names
+- brace-depth-aware block extraction for nested rules and quoted braces
+
+---
+
+
 ## [0.4.10] - 2026-07-29
 
 ### Fixed
