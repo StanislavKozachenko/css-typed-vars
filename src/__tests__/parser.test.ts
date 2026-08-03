@@ -100,6 +100,20 @@ describe('parseVarNames', () => {
     expect(result).toContain('--color-text');
   });
 
+  it('keeps properties declared after a nested block inside :root', () => {
+    const css = `:root {
+      --color: red;
+      @media (prefers-color-scheme: dark) { --color: blue; }
+      --spacing: 8px;
+    }`;
+    expect(parseVarNames(css)).toEqual(['--color', '--spacing']);
+  });
+
+  it('does not lose properties after a string value containing a brace', () => {
+    const css = `:root { --content: "a}b"; --after: 1px; }`;
+    expect(parseVarNames(css)).toEqual(['--content', '--after']);
+  });
+
   it('deduplicates variables across :root and extra selectors', () => {
     const css = `
       :root { --color: red; }
