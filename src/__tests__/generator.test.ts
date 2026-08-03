@@ -93,6 +93,16 @@ describe('generateCode', () => {
     expect(result).toContain("'1st-color': 'var(--1st-color)'");
   });
 
+  it('converts a hyphenated prefix to camelCase instead of emitting an invalid key', () => {
+    const result = generateCode(['--color-primary'], 'my-theme');
+    expect(result).toContain("myThemeColorPrimary: 'var(--color-primary)'");
+  });
+
+  it('converts a hyphenated prefix to snake_case', () => {
+    const result = generateCode(['--color-primary'], 'my-theme', 'snake');
+    expect(result).toContain("my_theme_color_primary: 'var(--color-primary)'");
+  });
+
   it('camelCase collapses consecutive dashes into single boundary', () => {
     const result = generateCode(['--my--var']);
     expect(result).toContain("myVar: 'var(--my--var)'");
