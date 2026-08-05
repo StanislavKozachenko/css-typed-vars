@@ -28,9 +28,10 @@ export async function generate(options: GenerateOptions): Promise<void> {
   const outPath = resolve(options.output);
   await mkdir(dirname(outPath), { recursive: true });
 
-  if (options.output.endsWith('.js')) {
+  const jsExtMatch = /\.(m|c)?js$/.exec(options.output);
+  if (jsExtMatch) {
     await writeFile(outPath, generateJs(names, options.prefix, options.naming), 'utf8');
-    const dtsPath = outPath.replace(/\.js$/, '.d.ts');
+    const dtsPath = outPath.slice(0, -jsExtMatch[0].length) + '.d.ts';
     await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
   } else {
     await writeFile(outPath, generateCode(names, options.prefix, options.naming), 'utf8');
