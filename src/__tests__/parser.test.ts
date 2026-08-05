@@ -129,6 +129,11 @@ describe('parseVarNames', () => {
     expect(parseVarNames(css)).toEqual(['--bg', '--after']);
   });
 
+  it('does not match a selector that is a prefix of another selector', () => {
+    const css = `.darkMode { --x: 1px; }`;
+    expect(parseVarNames(css, ['.dark'])).toEqual([]);
+  });
+
   it('deduplicates variables across :root and extra selectors', () => {
     const css = `
       :root { --color: red; }
