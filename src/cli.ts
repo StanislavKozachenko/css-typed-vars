@@ -106,7 +106,8 @@ async function main(): Promise<void> {
       console.log(`${label}: ${file}`);
       run(input, output, exclude, prefix, naming, selectors).catch(console.error);
     };
-    watch(patterns)
+    const ignored = exclude ? (Array.isArray(exclude) ? exclude : [exclude]) : undefined;
+    watch(patterns, ignored ? { ignored } : undefined)
       .on('change', makeHandler('Changed'))
       .on('add', makeHandler('Added'))
       .on('unlink', makeHandler('Removed'));
