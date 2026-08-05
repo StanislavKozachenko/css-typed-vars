@@ -70,6 +70,36 @@ describe('generate', () => {
     expect(dts).toContain("colorPrimary: 'var(--color-primary)';");
   });
 
+  it('generates JS file and .d.ts when output ends in .mjs', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'mjs-test.css');
+    const output = join(dir, 'cssVars.mjs');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+
+    const js = await readFile(join(dir, 'cssVars.mjs'), 'utf8');
+    const dts = await readFile(join(dir, 'cssVars.d.ts'), 'utf8');
+    expect(js).toContain("colorPrimary: 'var(--color-primary)'");
+    expect(js).not.toContain('as const');
+    expect(dts).toContain('export declare const cssVars');
+  });
+
+  it('generates JS file and .d.ts when output ends in .cjs', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'cjs-test.css');
+    const output = join(dir, 'cssVars.cjs');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+
+    const js = await readFile(join(dir, 'cssVars.cjs'), 'utf8');
+    const dts = await readFile(join(dir, 'cssVars.d.ts'), 'utf8');
+    expect(js).toContain("colorPrimary: 'var(--color-primary)'");
+    expect(js).not.toContain('as const');
+    expect(dts).toContain('export declare const cssVars');
+  });
+
   it('applies snake naming to generated output', async () => {
     const { writeFile } = await import('node:fs/promises');
     const input = join(dir, 'naming-test.css');
