@@ -114,6 +114,21 @@ describe('parseVarNames', () => {
     expect(parseVarNames(css)).toEqual(['--content', '--after']);
   });
 
+  it('does not let a // inside a quoted value break quote tracking', () => {
+    const css = `:root {
+      --content: "a // b";
+    }
+    .foo {
+      --leak: 1px;
+    }`;
+    expect(parseVarNames(css)).toEqual(['--content']);
+  });
+
+  it('does not treat a protocol-relative url() as a comment start', () => {
+    const css = `:root { --bg: url(//cdn.example.com/img.png); --after: 1px; }`;
+    expect(parseVarNames(css)).toEqual(['--bg', '--after']);
+  });
+
   it('deduplicates variables across :root and extra selectors', () => {
     const css = `
       :root { --color: red; }
