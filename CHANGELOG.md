@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.12] - 2026-08-05
+
+### Fixed
+
+- pass --exclude patterns to chokidar as ignored in watch mode
+- route .mjs/.cjs output extensions to JS generation
+- require a selector boundary after custom selector match
+- make comment stripping quote/url-aware
+
+---
+
+
 ## [0.4.11] - 2026-08-03
 
 ### Fixed
