@@ -81,7 +81,7 @@ export function parseVarNames(css: string, selectors?: string[]): string[] {
   const allSelectors = [':root', ...(selectors ?? [])];
   for (const sel of allSelectors) {
     const escaped = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const openRegex = new RegExp(`${escaped}[^{]*\\{`, 'g');
+    const openRegex = new RegExp(`${escaped}(?![\\w-])[^{]*\\{`, 'g');
     let match: RegExpExecArray | null;
     while ((match = openRegex.exec(stripped))) {
       const start = match.index + match[0].length;
