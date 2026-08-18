@@ -14,7 +14,8 @@ function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): stri
 
 function applyPrefix(key: string, prefix: string | undefined, naming: NamingConvention = 'camelCase'): string {
   if (!prefix) return key;
-  const normalizedPrefix = convertCase(prefix, naming);
+  let normalizedPrefix = convertCase(prefix, naming);
+  if (naming !== 'kebab' && /^\d/.test(normalizedPrefix)) normalizedPrefix = `_${normalizedPrefix}`;
   if (naming === 'snake') return `${normalizedPrefix}_${key}`;
   if (naming === 'kebab') return `${normalizedPrefix}-${key}`;
   return normalizedPrefix + key.charAt(0).toUpperCase() + key.slice(1);
