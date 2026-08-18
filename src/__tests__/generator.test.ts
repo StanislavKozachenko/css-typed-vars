@@ -103,6 +103,21 @@ describe('generateCode', () => {
     expect(result).toContain("my_theme_color_primary: 'var(--color-primary)'");
   });
 
+  it('prefixes a digit-starting prefix with underscore instead of emitting an invalid key (camelCase)', () => {
+    const result = generateCode(['--color-primary'], '123brand');
+    expect(result).toContain("_123brandColorPrimary: 'var(--color-primary)'");
+  });
+
+  it('prefixes a digit-starting prefix with underscore instead of emitting an invalid key (snake)', () => {
+    const result = generateCode(['--color-primary'], '123brand', 'snake');
+    expect(result).toContain("_123brand_color_primary: 'var(--color-primary)'");
+  });
+
+  it('does not prefix a digit-starting prefix in kebab (already quoted)', () => {
+    const result = generateCode(['--color-primary'], '123brand', 'kebab');
+    expect(result).toContain("'123brand-color-primary': 'var(--color-primary)'");
+  });
+
   it('camelCase collapses consecutive dashes into single boundary', () => {
     const result = generateCode(['--my--var']);
     expect(result).toContain("myVar: 'var(--my--var)'");
