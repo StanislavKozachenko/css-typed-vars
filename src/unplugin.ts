@@ -60,9 +60,10 @@ export default createUnplugin((options: Options) => {
           }
         };
 
-        server.watcher.on('change', handle);
-        server.watcher.on('add', handle);
-        server.watcher.on('unlink', handle);
+        const safeHandle = (file: string) => handle(file).catch(console.error);
+        server.watcher.on('change', safeHandle);
+        server.watcher.on('add', safeHandle);
+        server.watcher.on('unlink', safeHandle);
       },
     },
 
