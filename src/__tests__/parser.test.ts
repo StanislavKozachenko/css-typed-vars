@@ -129,6 +129,11 @@ describe('parseVarNames', () => {
     expect(parseVarNames(css)).toEqual(['--bg', '--after']);
   });
 
+  it('does not desync on a literal ) inside a quoted url()', () => {
+    const css = `:root { --bg: url("weird)name.png"); --after: 1px; }`;
+    expect(parseVarNames(css)).toEqual(['--bg', '--after']);
+  });
+
   it('does not match a selector that is a prefix of another selector', () => {
     const css = `.darkMode { --x: 1px; }`;
     expect(parseVarNames(css, ['.dark'])).toEqual([]);

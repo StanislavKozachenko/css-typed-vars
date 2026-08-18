@@ -15,15 +15,15 @@ function stripComments(text: string): string {
       continue;
     }
 
-    if (urlDepth > 0) {
-      if (char === '(') urlDepth++;
-      else if (char === ')') urlDepth--;
+    if (char === '"' || char === "'") {
+      quote = char;
       result += char;
       continue;
     }
 
-    if (char === '"' || char === "'") {
-      quote = char;
+    if (urlDepth > 0) {
+      if (char === '(') urlDepth++;
+      else if (char === ')') urlDepth--;
       result += char;
       continue;
     }
