@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.13] - 2026-08-18
+
+### Fixed
+
+- honor quotes before url() paren-depth tracking
+- catch watch handler rejections in Vite dev server
+- exit with non-zero code when generate() fails
+- guard applyPrefix against numeric-leading prefix
+
+---
+
+
 ## [0.4.12] - 2026-08-05
 
 ### Fixed
