@@ -45,8 +45,8 @@ async function loadConfig(): Promise<Config> {
         const content = await readFile(path, 'utf8');
         return JSON.parse(content) as Config;
       } else {
-        const mod = await import(pathToFileURL(path).href) as { default: Config };
-        return mod.default;
+        const mod = await import(pathToFileURL(path).href) as { default?: Config };
+        return mod.default ?? {};
       }
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
