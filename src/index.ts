@@ -28,7 +28,7 @@ export async function generate(options: GenerateOptions): Promise<void> {
   const outPath = resolve(options.output);
   await mkdir(dirname(outPath), { recursive: true });
 
-  const jsExtMatch = /\.(m|c)?js$/.exec(options.output);
+  const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);
   if (jsExtMatch) {
     await writeFile(outPath, generateJs(names, options.prefix, options.naming), 'utf8');
     const dtsPath = outPath.slice(0, -jsExtMatch[0].length) + '.d.ts';
