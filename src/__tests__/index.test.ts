@@ -85,6 +85,21 @@ describe('generate', () => {
     expect(dts).toContain('export declare const cssVars');
   });
 
+  it('generates JS file and .d.ts when output ends in .JS (case-insensitive)', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'uppercase-ext-test.css');
+    const output = join(dir, 'cssVars.JS');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+
+    const js = await readFile(output, 'utf8');
+    const dts = await readFile(join(dir, 'cssVars.d.ts'), 'utf8');
+    expect(js).toContain("colorPrimary: 'var(--color-primary)'");
+    expect(js).not.toContain('as const');
+    expect(dts).toContain('export declare const cssVars');
+  });
+
   it('generates JS file and .d.ts when output ends in .cjs', async () => {
     const { writeFile } = await import('node:fs/promises');
     const input = join(dir, 'cjs-test.css');
