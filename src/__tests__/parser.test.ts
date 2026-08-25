@@ -134,6 +134,11 @@ describe('parseVarNames', () => {
     expect(parseVarNames(css)).toEqual(['--bg', '--after']);
   });
 
+  it('does not treat a declaration-like substring inside a quoted value as a real variable', () => {
+    const css = `:root { --desc: "see --brand-color: red for branding"; --after: 1px; }`;
+    expect(parseVarNames(css)).toEqual(['--desc', '--after']);
+  });
+
   it('does not match a selector that is a prefix of another selector', () => {
     const css = `.darkMode { --x: 1px; }`;
     expect(parseVarNames(css, ['.dark'])).toEqual([]);

@@ -75,6 +75,31 @@ function extractBlock(text: string, start: number): string {
   return text.slice(start, depth === 0 ? i - 1 : i);
 }
 
+function maskQuotedContent(text: string): string {
+  let result = '';
+  let quote: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (quote) {
+      if (char === '\\' && i + 1 < text.length) {
+        result += '  ';
+        i++;
+      } else if (char === quote) {
+        quote = null;
+        result += char;
+      } else {
+        result += ' ';
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+    }
+    result += char;
+  }
+  return result;
+}
+
 export function parseVarNames(css: string, selectors?: string[]): string[] {
   const stripped = stripComments(css);
   const names = new Set<string>();
@@ -86,7 +111,7 @@ export function parseVarNames(css: string, selectors?: string[]): string[] {
     while ((match = openRegex.exec(stripped))) {
       const start = match.index + match[0].length;
       const block = extractBlock(stripped, start);
-      for (const prop of block.matchAll(/--[\w-]+(?=\s*:)/g)) {
+      for (const prop of maskQuotedContent(block).matchAll(/--[\w-]+(?=\s*:)/g)) {
         names.add(prop[0]);
       }
       openRegex.lastIndex = start + block.length + 1;
