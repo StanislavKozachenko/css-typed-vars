@@ -17,7 +17,13 @@ export async function scanVarNames(
   const all = new Set<string>();
   await Promise.all(
     files.map(async (file) => {
-      const css = await readFile(file, 'utf8');
+      let css: string;
+      try {
+        css = await readFile(file, 'utf8');
+      } catch (err) {
+        console.warn(`css-typed-vars: skipping "${file}": ${(err as Error).message}`);
+        return;
+      }
       for (const name of parseVarNames(css, selectors)) {
         all.add(name);
       }

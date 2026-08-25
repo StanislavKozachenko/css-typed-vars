@@ -1,8 +1,21 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { scanVarNames } from '../scanner.js';
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    readFile: vi.fn(async (path: string, encoding: BufferEncoding) => {
+      if (path.toString().includes('vanished')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+      }
+      return actual.readFile(path, encoding);
+    }),
+  };
+});
 
 let dir: string;
 
@@ -76,6 +89,17 @@ describe('scanVarNames', () => {
     const result = await scanVarNames(`${dir}/theme.css`);
     expect(result).not.toContain('--dark-bg');
     expect(result).toContain('--color-primary');
+  });
+
+  it('skips a file that fails to read instead of aborting the whole scan', async () => {
+    await writeFile(join(dir, 'vanished.css'), ':root { --should-not-appear: 1px; }');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await scanVarNames(`${dir}/*.css`);
+    expect(result).not.toContain('--should-not-appear');
+    expect(result).toContain('--color-primary');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('vanished.css'));
+    warn.mockRestore();
+    await rm(join(dir, 'vanished.css'));
   });
 
   it('returns variables in stable sorted order across multiple runs', async () => {
