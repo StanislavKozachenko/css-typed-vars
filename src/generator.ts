@@ -15,9 +15,13 @@ function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): stri
 function applyPrefix(key: string, prefix: string | undefined, naming: NamingConvention = 'camelCase'): string {
   if (!prefix) return key;
   let normalizedPrefix = convertCase(prefix, naming);
-  if (naming !== 'kebab' && /^\d/.test(normalizedPrefix)) normalizedPrefix = `_${normalizedPrefix}`;
+  if (naming === 'kebab') {
+    normalizedPrefix = normalizedPrefix.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `${normalizedPrefix}-${key}`;
+  }
+  normalizedPrefix = normalizedPrefix.replace(/[^A-Za-z0-9_$]/g, '');
+  if (/^\d/.test(normalizedPrefix)) normalizedPrefix = `_${normalizedPrefix}`;
   if (naming === 'snake') return `${normalizedPrefix}_${key}`;
-  if (naming === 'kebab') return `${normalizedPrefix}-${key}`;
   return normalizedPrefix + key.charAt(0).toUpperCase() + key.slice(1);
 }
 
