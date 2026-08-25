@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.14] - 2026-08-25
+
+### Fixed
+
+- validate naming in the shared code path
+- make output extension check for JS routing case-insensitive
+- skip an unreadable matched file instead of aborting the scan
+- fall back to empty config when module has no default export
+- sanitize prefix for characters invalid in the target naming
+- mask quoted string content before scanning for var names
+
+---
+
+
 ## [0.4.13] - 2026-08-18
 
 ### Fixed
