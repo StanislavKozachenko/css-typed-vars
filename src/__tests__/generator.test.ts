@@ -118,6 +118,21 @@ describe('generateCode', () => {
     expect(result).toContain("'123brand-color-primary': 'var(--color-primary)'");
   });
 
+  it('strips characters invalid in a bare identifier from prefix (camelCase)', () => {
+    const result = generateCode(['--color-primary'], "it's");
+    expect(result).toContain("itsColorPrimary: 'var(--color-primary)'");
+  });
+
+  it('strips characters invalid in a bare identifier from prefix (snake)', () => {
+    const result = generateCode(['--color-primary'], "it's", 'snake');
+    expect(result).toContain("its_color_primary: 'var(--color-primary)'");
+  });
+
+  it('escapes a quote in prefix instead of breaking the kebab string literal', () => {
+    const result = generateCode(['--color-primary'], "it's", 'kebab');
+    expect(result).toContain("'it\\'s-color-primary': 'var(--color-primary)'");
+  });
+
   it('camelCase collapses consecutive dashes into single boundary', () => {
     const result = generateCode(['--my--var']);
     expect(result).toContain("myVar: 'var(--my--var)'");
