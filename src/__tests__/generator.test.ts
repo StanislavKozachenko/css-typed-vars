@@ -150,6 +150,26 @@ describe('generateCode', () => {
   });
 });
 
+describe('naming validation', () => {
+  it('throws for an unsupported naming value', () => {
+    expect(() => generateCode(['--color-primary'], undefined, 'PascalCase' as never)).toThrow(
+      /invalid naming "PascalCase"/,
+    );
+  });
+
+  it('throws for an unsupported naming value in generateJs', () => {
+    expect(() => generateJs(['--color-primary'], undefined, 'PascalCase' as never)).toThrow(
+      /invalid naming "PascalCase"/,
+    );
+  });
+
+  it('throws for an unsupported naming value in generateDeclaration', () => {
+    expect(() => generateDeclaration(['--color-primary'], undefined, 'PascalCase' as never)).toThrow(
+      /invalid naming "PascalCase"/,
+    );
+  });
+});
+
 describe('findKeyCollisions', () => {
   it('detects --my--var, --my-var and --myVar colliding on the same camelCase key', () => {
     const collisions = findKeyCollisions(['--my--var', '--my-var', '--myVar']);
