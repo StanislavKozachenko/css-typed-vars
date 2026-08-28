@@ -1,10 +1,10 @@
 export type NamingConvention = 'camelCase' | 'snake' | 'kebab';
 
-const VALID_NAMINGS: NamingConvention[] = ['camelCase', 'snake', 'kebab'];
+export const VALID_NAMINGS: NamingConvention[] = ['camelCase', 'snake', 'kebab'];
 
 function convertCase(value: string, naming: NamingConvention): string {
   if (!VALID_NAMINGS.includes(naming)) {
-    throw new Error(`css-typed-vars: invalid naming "${naming}". Valid values: camelCase, snake, kebab`);
+    throw new Error(`css-typed-vars: invalid naming "${naming}". Valid values: ${VALID_NAMINGS.join(', ')}`);
   }
   if (naming === 'kebab') return value;
   return naming === 'snake'
