@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.15] - 2026-08-28
+
+### Fixed
+
+- debounce watch handler and guard against stale scan overwrites
+- reuse generator's VALID_NAMINGS instead of a second hardcoded list
+- warn on key collisions in the bundler plugin path
+- deduplicate entries to prevent duplicate type-literal properties
+
+---
+
+
 ## [0.4.14] - 2026-08-25
 
 ### Fixed
