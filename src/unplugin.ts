@@ -48,17 +48,22 @@ export default createUnplugin((options: Options) => {
       enforce: 'pre' as const,
 
       configureServer(server: any) {
-        const handle = async (file: string) => {
-          if (!/\.(css|scss|less)$/i.test(file)) return;
+        let generation = 0;
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-          cachedNames = scanVarNames(options.input, options.exclude, options.selectors);
-          const names = await cachedNames;
+        const rescan = async () => {
+          const myGeneration = ++generation;
+          const namesPromise = scanVarNames(options.input, options.exclude, options.selectors);
+          cachedNames = namesPromise;
+          const names = await namesPromise;
+          if (myGeneration !== generation) return;
           warnOnCollisions(names, options);
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
             await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
           }
+          if (myGeneration !== generation) return;
 
           const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
           if (mod) {
@@ -67,10 +72,18 @@ export default createUnplugin((options: Options) => {
           }
         };
 
-        const safeHandle = (file: string) => handle(file).catch(console.error);
-        server.watcher.on('change', safeHandle);
-        server.watcher.on('add', safeHandle);
-        server.watcher.on('unlink', safeHandle);
+        const handle = (file: string) => {
+          if (!/\.(css|scss|less)$/i.test(file)) return;
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            debounceTimer = null;
+            rescan().catch(console.error);
+          }, 100);
+        };
+
+        server.watcher.on('change', handle);
+        server.watcher.on('add', handle);
+        server.watcher.on('unlink', handle);
       },
     },
 
