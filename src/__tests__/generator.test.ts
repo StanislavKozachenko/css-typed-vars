@@ -148,6 +148,13 @@ describe('generateCode', () => {
     expect(result).toContain("my_var: 'var(--my--var)'");
     expect(result).toContain("my__var: 'var(--my-_var)'");
   });
+
+  it('deduplicates a real key collision, keeping only the last-colliding var', () => {
+    const result = generateCode(['--my--var', '--my-var'], undefined, 'snake');
+    expect(result.match(/my_var:/g)).toHaveLength(1);
+    expect(result).toContain("my_var: 'var(--my-var)'");
+    expect(result).not.toContain('--my--var');
+  });
 });
 
 describe('naming validation', () => {
@@ -253,5 +260,11 @@ describe('generateDeclaration', () => {
   it('applies prefix in declaration output', () => {
     const result = generateDeclaration(['--color-primary'], 'theme');
     expect(result).toContain("themeColorPrimary: 'var(--color-primary)';");
+  });
+
+  it('never emits a duplicate type-literal property on key collision', () => {
+    const result = generateDeclaration(['--my--var', '--my-var'], undefined, 'snake');
+    expect(result.match(/my_var:/g)).toHaveLength(1);
+    expect(result).toContain("my_var: 'var(--my-var)';");
   });
 });

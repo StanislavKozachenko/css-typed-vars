@@ -53,11 +53,21 @@ export function findKeyCollisions(
   return byKey;
 }
 
-export function generateCode(varNames: string[], prefix?: string, naming?: NamingConvention): string {
-  const entries = varNames.map(name => {
+function buildEntries(
+  varNames: string[],
+  prefix: string | undefined,
+  naming: NamingConvention | undefined,
+): Array<{ key: string; name: string }> {
+  const byKey = new Map<string, string>();
+  for (const name of varNames) {
     const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
-    return `  ${key}: 'var(${name})',`;
-  });
+    byKey.set(key, name);
+  }
+  return [...byKey].map(([key, name]) => ({ key, name }));
+}
+
+export function generateCode(varNames: string[], prefix?: string, naming?: NamingConvention): string {
+  const entries = buildEntries(varNames, prefix, naming).map(({ key, name }) => `  ${key}: 'var(${name})',`);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -70,10 +80,7 @@ export function generateCode(varNames: string[], prefix?: string, naming?: Namin
 }
 
 export function generateJs(varNames: string[], prefix?: string, naming?: NamingConvention): string {
-  const entries = varNames.map(name => {
-    const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
-    return `  ${key}: 'var(${name})',`;
-  });
+  const entries = buildEntries(varNames, prefix, naming).map(({ key, name }) => `  ${key}: 'var(${name})',`);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -84,10 +91,7 @@ export function generateJs(varNames: string[], prefix?: string, naming?: NamingC
 }
 
 export function generateDeclaration(varNames: string[], prefix?: string, naming?: NamingConvention): string {
-  const entries = varNames.map(name => {
-    const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
-    return `  ${key}: 'var(${name})';`;
-  });
+  const entries = buildEntries(varNames, prefix, naming).map(({ key, name }) => `  ${key}: 'var(${name})';`);
   return [
     'export declare const cssVars: {',
     ...entries,
