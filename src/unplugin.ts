@@ -2,7 +2,7 @@ import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { scanVarNames } from './scanner.js';
-import { generateJs, generateDeclaration, type NamingConvention } from './generator.js';
+import { generateJs, generateDeclaration, findKeyCollisions, type NamingConvention } from './generator.js';
 
 export interface Options {
   input: string | string[];
@@ -24,6 +24,12 @@ const RESOLVED_ID = '\0css-typed-vars/vars';
 
 // __dirname is injected by tsup (shims: true) for ESM; native in CJS
 declare const __dirname: string;
+
+function warnOnCollisions(names: string[], options: Options): void {
+  for (const [key, vars] of findKeyCollisions(names, options.prefix, options.naming)) {
+    console.warn(`css-typed-vars: multiple CSS variables map to the same key "${key}" (${vars.join(', ')}) — only the last one will be kept.`);
+  }
+}
 
 function getDtsPath(options: Options): string | null {
   if (options.dts === false) return null;
@@ -47,6 +53,7 @@ export default createUnplugin((options: Options) => {
 
           cachedNames = scanVarNames(options.input, options.exclude, options.selectors);
           const names = await cachedNames;
+          warnOnCollisions(names, options);
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
@@ -69,9 +76,10 @@ export default createUnplugin((options: Options) => {
 
     async buildStart() {
       cachedNames = scanVarNames(options.input, options.exclude, options.selectors);
+      const names = await cachedNames;
+      warnOnCollisions(names, options);
       const dtsPath = getDtsPath(options);
       if (!dtsPath) return;
-      const names = await cachedNames;
       await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
     },
 
