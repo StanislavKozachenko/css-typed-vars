@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
 import { generate } from './index.js';
-import type { NamingConvention } from './generator.js';
+import { VALID_NAMINGS, type NamingConvention } from './generator.js';
 
 const args = process.argv.slice(2).flatMap((arg) => {
   const match = /^(--[\w-]+)=(.*)$/.exec(arg);
@@ -84,8 +84,8 @@ async function main(): Promise<void> {
   const exclude = excludeArgs.length > 0 ? excludeArgs : config.exclude;
   const prefix = getArg('--prefix') ?? config.prefix;
   const namingRaw = getArg('--naming') ?? config.naming;
-  if (namingRaw !== undefined && !['camelCase', 'snake', 'kebab'].includes(namingRaw)) {
-    console.error(`css-typed-vars: invalid --naming value "${namingRaw}". Valid values: camelCase, snake, kebab`);
+  if (namingRaw !== undefined && !VALID_NAMINGS.includes(namingRaw as NamingConvention)) {
+    console.error(`css-typed-vars: invalid --naming value "${namingRaw}". Valid values: ${VALID_NAMINGS.join(', ')}`);
     process.exit(1);
   }
   const naming = namingRaw as NamingConvention | undefined;
