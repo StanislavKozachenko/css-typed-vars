@@ -1,3 +1,19 @@
+interface QuoteStep {
+  consumed: number;
+  closed: boolean;
+}
+
+// Decides how many characters the current position consumes while inside a
+// quoted string, and whether that consumption closes the quote. Shared by
+// stripComments and maskQuotedContent, which each decide separately what to
+// do with the consumed characters (keep verbatim vs. mask).
+function stepQuote(text: string, i: number, quote: string): QuoteStep {
+  const char = text[i];
+  if (char === '\\' && i + 1 < text.length) return { consumed: 2, closed: false };
+  if (char === quote) return { consumed: 1, closed: true };
+  return { consumed: 1, closed: false };
+}
+
 function stripComments(text: string): string {
   let result = '';
   let quote: string | null = null;
@@ -6,12 +22,10 @@ function stripComments(text: string): string {
     const char = text[i];
 
     if (quote) {
-      result += char;
-      if (char === '\\' && i + 1 < text.length) {
-        result += text[++i];
-      } else if (char === quote) {
-        quote = null;
-      }
+      const step = stepQuote(text, i, quote);
+      result += text.slice(i, i + step.consumed);
+      if (step.closed) quote = null;
+      i += step.consumed - 1;
       continue;
     }
 
@@ -81,15 +95,14 @@ function maskQuotedContent(text: string): string {
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     if (quote) {
-      if (char === '\\' && i + 1 < text.length) {
-        result += '  ';
-        i++;
-      } else if (char === quote) {
-        quote = null;
+      const step = stepQuote(text, i, quote);
+      if (step.closed) {
         result += char;
+        quote = null;
       } else {
-        result += ' ';
+        result += ' '.repeat(step.consumed);
       }
+      i += step.consumed - 1;
       continue;
     }
     if (char === '"' || char === "'") {
