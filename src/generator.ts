@@ -72,6 +72,12 @@ export function findKeyCollisions(
   return byKey;
 }
 
+export function warnOnCollisions(varNames: string[], prefix?: string, naming?: NamingConvention): void {
+  for (const [key, vars] of findKeyCollisions(varNames, prefix, naming)) {
+    console.warn(`css-typed-vars: multiple CSS variables map to the same key "${key}" (${vars.join(', ')}) — only the last one will be kept.`);
+  }
+}
+
 function buildEntries(
   varNames: string[],
   prefix: string | undefined,
