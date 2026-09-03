@@ -50,6 +50,7 @@ export default createUnplugin((options: Options) => {
       configureServer(server: any) {
         let generation = 0;
         let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+        let writeQueue: Promise<void> = Promise.resolve();
 
         const rescan = async () => {
           const myGeneration = ++generation;
@@ -61,7 +62,14 @@ export default createUnplugin((options: Options) => {
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
-            await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
+            const content = generateDeclaration(names, options.prefix, options.naming);
+            // Writes are serialized (not just generation-gated before starting) so a slower
+            // write for an older generation can never complete after a newer one's and clobber it.
+            writeQueue = writeQueue.then(async () => {
+              if (myGeneration !== generation) return;
+              await writeFile(dtsPath, content, 'utf8');
+            }).catch(console.error);
+            await writeQueue;
           }
           if (myGeneration !== generation) return;
 
