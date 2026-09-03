@@ -17,11 +17,30 @@ function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): stri
   return naming !== 'kebab' && /^\d/.test(key) ? `_${key}` : key;
 }
 
+const LINE_SEPARATOR_CHAR = String.fromCharCode(8232);
+const PARAGRAPH_SEPARATOR_CHAR = String.fromCharCode(8233);
+
+const SINGLE_QUOTE_ESCAPES: Record<string, string> = {};
+SINGLE_QUOTE_ESCAPES['\\'] = '\\\\';
+SINGLE_QUOTE_ESCAPES["'"] = "\\'";
+SINGLE_QUOTE_ESCAPES['\n'] = '\\n';
+SINGLE_QUOTE_ESCAPES['\r'] = '\\r';
+SINGLE_QUOTE_ESCAPES[LINE_SEPARATOR_CHAR] = '\\u2028';
+SINGLE_QUOTE_ESCAPES[PARAGRAPH_SEPARATOR_CHAR] = '\\u2029';
+
+function escapeSingleQuoted(value: string): string {
+  let result = '';
+  for (const char of value) {
+    result += SINGLE_QUOTE_ESCAPES[char] ?? char;
+  }
+  return result;
+}
+
 function applyPrefix(key: string, prefix: string | undefined, naming: NamingConvention = 'camelCase'): string {
   if (!prefix) return key;
   let normalizedPrefix = convertCase(prefix, naming);
   if (naming === 'kebab') {
-    normalizedPrefix = normalizedPrefix.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    normalizedPrefix = escapeSingleQuoted(normalizedPrefix);
     return `${normalizedPrefix}-${key}`;
   }
   normalizedPrefix = normalizedPrefix.replace(/[^A-Za-z0-9_$]/g, '');

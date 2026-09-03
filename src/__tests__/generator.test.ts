@@ -133,6 +133,24 @@ describe('generateCode', () => {
     expect(result).toContain("'it\\'s-color-primary': 'var(--color-primary)'");
   });
 
+  it('escapes a newline in prefix instead of breaking the kebab string literal', () => {
+    const result = generateCode(['--color-primary'], 'foo\nbar', 'kebab');
+    expect(result).toContain("'foo\\nbar-color-primary': 'var(--color-primary)'");
+    expect(result).not.toContain('foo\nbar-color-primary');
+  });
+
+  it('escapes a carriage return in prefix instead of breaking the kebab string literal', () => {
+    const result = generateCode(['--color-primary'], 'foo\rbar', 'kebab');
+    expect(result).toContain("'foo\\rbar-color-primary': 'var(--color-primary)'");
+  });
+
+  it('escapes a line separator character in prefix instead of breaking the kebab string literal', () => {
+    const lineSeparator = String.fromCharCode(8232);
+    const result = generateCode(['--color-primary'], `foo${lineSeparator}bar`, 'kebab');
+    expect(result).toContain("'foo\\u2028bar-color-primary': 'var(--color-primary)'");
+    expect(result).not.toContain(`foo${lineSeparator}bar-color-primary`);
+  });
+
   it('camelCase collapses consecutive dashes into single boundary', () => {
     const result = generateCode(['--my--var']);
     expect(result).toContain("myVar: 'var(--my--var)'");
