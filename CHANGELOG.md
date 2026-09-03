@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.16] - 2026-09-03
+
+### Fixed
+
+- serialize dts writes to prevent stale write from clobbering a newer one
+- escape newline and control characters in kebab prefix
+
+### Changed
+
+- share quote-tracking logic between stripComments and maskQuotedContent
+- share the key-collision warning between index.ts and unplugin.ts
+
+---
+
+
 ## [0.4.15] - 2026-08-28
 
 ### Fixed
