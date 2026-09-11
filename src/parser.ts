@@ -76,8 +76,9 @@ function extractBlock(text: string, start: number): string {
   for (; i < text.length && depth > 0; i++) {
     const char = text[i];
     if (quote) {
-      if (char === '\\') i++;
-      else if (char === quote) quote = null;
+      const step = stepQuote(text, i, quote);
+      if (step.closed) quote = null;
+      i += step.consumed - 1;
     } else if (char === '"' || char === "'") {
       quote = char;
     } else if (char === '{') {
