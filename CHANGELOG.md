@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.4.17] - 2026-09-28
+
+### Changed
+
+- use stepQuote in extractBlock instead of a third hand-rolled copy
+
+---
+
+
 ## [0.4.16] - 2026-09-03
 
 ### Fixed
