@@ -153,6 +153,30 @@ describe('generate', () => {
     expect(result).not.toContain("colorPrimary: 'var(--color-primary)'");
   });
 
+  it('emits a JSDoc @default comment with the declared CSS value', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'default-test.css');
+    const output = join(dir, 'defaultVars.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("/** @default red */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('emits a JSDoc @default comment in the .d.ts sidecar for JS output', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'default-js-test.css');
+    const output = join(dir, 'defaultVars.js');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+
+    const dts = await readFile(join(dir, 'defaultVars.d.ts'), 'utf8');
+    expect(dts).toContain("/** @default red */\n  colorPrimary: 'var(--color-primary)';");
+  });
+
   it('warns when generated keys collide', async () => {
     const { writeFile } = await import('node:fs/promises');
     const input = join(dir, 'collision-test.css');

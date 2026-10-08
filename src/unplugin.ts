@@ -1,7 +1,7 @@
 import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { scanVarNames } from './scanner.js';
+import { scanVarDeclarations } from './scanner.js';
 import { generateJs, generateDeclaration, warnOnCollisions, type NamingConvention } from './generator.js';
 
 export interface Options {
@@ -33,7 +33,9 @@ function getDtsPath(options: Options): string | null {
 }
 
 export default createUnplugin((options: Options) => {
-  let cachedNames: Promise<string[]> | null = null;
+  let cachedDeclarations: Promise<Map<string, string>> | null = null;
+
+  const scan = () => scanVarDeclarations(options.input, options.exclude, options.selectors);
 
   return {
     name: 'css-typed-vars',
@@ -48,15 +50,16 @@ export default createUnplugin((options: Options) => {
 
         const rescan = async () => {
           const myGeneration = ++generation;
-          const namesPromise = scanVarNames(options.input, options.exclude, options.selectors);
-          cachedNames = namesPromise;
-          const names = await namesPromise;
+          const declarationsPromise = scan();
+          cachedDeclarations = declarationsPromise;
+          const declarations = await declarationsPromise;
           if (myGeneration !== generation) return;
+          const names = [...declarations.keys()].sort();
           warnOnCollisions(names, options.prefix, options.naming);
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
-            const content = generateDeclaration(names, options.prefix, options.naming);
+            const content = generateDeclaration(names, options.prefix, options.naming, declarations);
             // Writes are serialized (not just generation-gated before starting) so a slower
             // write for an older generation can never complete after a newer one's and clobber it.
             writeQueue = writeQueue.then(async () => {
@@ -90,12 +93,13 @@ export default createUnplugin((options: Options) => {
     },
 
     async buildStart() {
-      cachedNames = scanVarNames(options.input, options.exclude, options.selectors);
-      const names = await cachedNames;
+      cachedDeclarations = scan();
+      const declarations = await cachedDeclarations;
+      const names = [...declarations.keys()].sort();
       warnOnCollisions(names, options.prefix, options.naming);
       const dtsPath = getDtsPath(options);
       if (!dtsPath) return;
-      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming), 'utf8');
+      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations), 'utf8');
     },
 
     resolveId(id: string) {
@@ -104,8 +108,9 @@ export default createUnplugin((options: Options) => {
 
     async load(id: string) {
       if (id === RESOLVED_ID) {
-        const names = await (cachedNames ?? scanVarNames(options.input, options.exclude, options.selectors));
-        return generateJs(names, options.prefix, options.naming);
+        const declarations = await (cachedDeclarations ?? scan());
+        const names = [...declarations.keys()].sort();
+        return generateJs(names, options.prefix, options.naming, declarations);
       }
     },
   };
