@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -27,6 +27,8 @@ beforeAll(async () => {
   await writeFile(join(dir, 'theme.css'), ':root { --color-primary: red; } .dark { --color-primary: #000; --dark-bg: #111; }');
   await mkdir(join(dir, 'vendor'));
   await writeFile(join(dir, 'vendor', 'lib.css'), ':root { --vendor-color: #fff; }');
+  await writeFile(join(dir, 'override-a.css'), ':root { --shared-value: fromA; }');
+  await writeFile(join(dir, 'override-b.css'), ':root { --shared-value: fromB; }');
 });
 
 afterAll(async () => {
@@ -107,5 +109,31 @@ describe('scanVarNames', () => {
     const second = await scanVarNames(`${dir}/*.css`);
     expect(first).toEqual(second);
     expect(first).toEqual([...first].sort());
+  });
+});
+
+describe('scanVarDeclarations', () => {
+  it('captures declared values alongside names', async () => {
+    const result = await scanVarDeclarations(`${dir}/a.css`);
+    expect(result.get('--color-primary')).toBe('red');
+    expect(result.get('--spacing-md')).toBe('8px');
+  });
+
+  it('resolves a name declared differently in multiple files by file order, not read-completion timing', async () => {
+    const aThenB = await scanVarDeclarations([`${dir}/override-a.css`, `${dir}/override-b.css`]);
+    expect(aThenB.get('--shared-value')).toBe('fromB');
+
+    const bThenA = await scanVarDeclarations([`${dir}/override-b.css`, `${dir}/override-a.css`]);
+    expect(bThenA.get('--shared-value')).toBe('fromA');
+  });
+
+  it('skips a file that fails to read instead of aborting the whole scan', async () => {
+    await writeFile(join(dir, 'vanished2.css'), ':root { --should-not-appear: 1px; }');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await scanVarDeclarations(`${dir}/vanished2.css`);
+    expect(result.has('--should-not-appear')).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('vanished2.css'));
+    warn.mockRestore();
+    await rm(join(dir, 'vanished2.css'));
   });
 });

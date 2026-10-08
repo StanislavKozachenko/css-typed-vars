@@ -114,9 +114,37 @@ function maskQuotedContent(text: string): string {
   return result;
 }
 
-export function parseVarNames(css: string, selectors?: string[]): string[] {
+// Scans a property's declared value starting right after its colon, honoring
+// quoted content (a `;` or `}` inside a quoted value doesn't end the value).
+function extractValue(text: string, start: number): string {
+  let i = start;
+  let quote: string | null = null;
+  for (; i < text.length; i++) {
+    const char = text[i];
+    if (quote) {
+      const step = stepQuote(text, i, quote);
+      if (step.closed) quote = null;
+      i += step.consumed - 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === ';' || char === '}') break;
+  }
+  return text.slice(start, i).trim();
+}
+
+// Walks every `:root`/custom-selector block in css, calling onProperty for
+// each custom-property declaration found. Shared by parseVarNames (which
+// only needs the name) and parseVarDeclarations (which also needs the value).
+function scanDeclarations(
+  css: string,
+  selectors: string[] | undefined,
+  onProperty: (name: string, value: string) => void,
+): void {
   const stripped = stripComments(css);
-  const names = new Set<string>();
   const allSelectors = [':root', ...(selectors ?? [])];
   for (const sel of allSelectors) {
     const escaped = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -125,11 +153,27 @@ export function parseVarNames(css: string, selectors?: string[]): string[] {
     while ((match = openRegex.exec(stripped))) {
       const start = match.index + match[0].length;
       const block = extractBlock(stripped, start);
-      for (const prop of maskQuotedContent(block).matchAll(/--[\w-]+(?=\s*:)/g)) {
-        names.add(prop[0]);
+      const masked = maskQuotedContent(block);
+      for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
+        const name = prop[0];
+        const colonIndex = block.indexOf(':', prop.index + name.length);
+        onProperty(name, extractValue(block, colonIndex + 1));
       }
       openRegex.lastIndex = start + block.length + 1;
     }
   }
+}
+
+export function parseVarNames(css: string, selectors?: string[]): string[] {
+  const names = new Set<string>();
+  scanDeclarations(css, selectors, (name) => names.add(name));
   return [...names];
+}
+
+// Last declaration for a given name wins, matching the project's existing
+// "last one wins" convention for naming collisions.
+export function parseVarDeclarations(css: string, selectors?: string[]): Map<string, string> {
+  const declarations = new Map<string, string>();
+  scanDeclarations(css, selectors, (name, value) => declarations.set(name, value));
+  return declarations;
 }

@@ -328,3 +328,41 @@ describe('generateDeclaration', () => {
     expect(result).toContain("my_var: 'var(--my-var)';");
   });
 });
+
+describe('JSDoc @default comments', () => {
+  it('emits @default above the key when a declared value is available (generateCode)', () => {
+    const declarations = new Map([['--color-primary', 'red']]);
+    const result = generateCode(['--color-primary'], undefined, undefined, declarations);
+    expect(result).toContain("/** @default red */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('emits @default above the key (generateJs)', () => {
+    const declarations = new Map([['--color-primary', 'red']]);
+    const result = generateJs(['--color-primary'], undefined, undefined, declarations);
+    expect(result).toContain("/** @default red */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('emits @default above the key (generateDeclaration)', () => {
+    const declarations = new Map([['--color-primary', 'red']]);
+    const result = generateDeclaration(['--color-primary'], undefined, undefined, declarations);
+    expect(result).toContain("/** @default red */\n  colorPrimary: 'var(--color-primary)';");
+  });
+
+  it('omits the comment entirely when no declarations map is given', () => {
+    const result = generateCode(['--color-primary']);
+    expect(result).not.toContain('@default');
+  });
+
+  it('omits the comment for a var with no entry in the declarations map', () => {
+    const declarations = new Map([['--spacing-md', '8px']]);
+    const result = generateCode(['--color-primary', '--spacing-md'], undefined, undefined, declarations);
+    expect(result).not.toContain('@default red');
+    expect(result).toContain('@default 8px');
+  });
+
+  it('escapes a value containing */ so it cannot break out of the block comment', () => {
+    const declarations = new Map([['--weird', 'foo */ bar']]);
+    const result = generateCode(['--weird'], undefined, undefined, declarations);
+    expect(result).toContain('/** @default foo *\\/ bar */');
+  });
+});
