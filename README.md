@@ -2,6 +2,7 @@
 
 <h1>css-typed-vars</h1>
 <p>Generate TypeScript typed constants from CSS custom properties</p>
+<p><a href="https://stanislavkozachenko.github.io/css-typed-vars/">📖 Full documentation</a></p>
 
 <p>
   <a href="https://github.com/StanislavKozachenko/css-typed-vars/actions"><img src="https://github.com/StanislavKozachenko/css-typed-vars/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
