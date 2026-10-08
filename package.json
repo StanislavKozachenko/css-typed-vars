@@ -62,7 +62,10 @@
   "scripts": {
     "build": "tsup && node scripts/postbuild.mjs",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
@@ -73,6 +76,7 @@
     "@types/node": "^25.5.2",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
+    "vitepress": "^1.6.4",
     "vitest": "^3.0.0"
   }
 }
