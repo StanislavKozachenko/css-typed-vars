@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.5.0] - 2026-10-08
+
+### Added
+
+- add --check flag to detect drift without writing
+- extract checkGenerated for in-memory drift detection
+- wire declarations through to generate* calls
+- emit a JSDoc @default comment from the declared value
+- add scanVarDeclarations and derive scanVarNames from it
+- add parseVarDeclarations to capture declared values alongside names
+- add constant and pascal naming conventions
+
+### Changed
+
+- document --check and checkGenerated
+- document the @default JSDoc comment and new programmatic exports
+
+---
+
+
 ## [0.4.17] - 2026-09-28
 
 ### Changed
