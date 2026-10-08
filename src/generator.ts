@@ -1,15 +1,16 @@
-export type NamingConvention = 'camelCase' | 'snake' | 'kebab';
+export type NamingConvention = 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal';
 
-export const VALID_NAMINGS: NamingConvention[] = ['camelCase', 'snake', 'kebab'];
+export const VALID_NAMINGS: NamingConvention[] = ['camelCase', 'snake', 'kebab', 'constant', 'pascal'];
 
 function convertCase(value: string, naming: NamingConvention): string {
   if (!VALID_NAMINGS.includes(naming)) {
     throw new Error(`css-typed-vars: invalid naming "${naming}". Valid values: ${VALID_NAMINGS.join(', ')}`);
   }
   if (naming === 'kebab') return value;
-  return naming === 'snake'
-    ? value.replace(/-+/g, '_')
-    : value.replace(/-+([a-z0-9])/g, (_, c: string) => c.toUpperCase()).replace(/-/g, '');
+  if (naming === 'snake') return value.replace(/-+/g, '_');
+  if (naming === 'constant') return value.replace(/-+/g, '_').toUpperCase();
+  if (naming === 'pascal') return value.replace(/(^|-+)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase()).replace(/-/g, '');
+  return value.replace(/-+([a-z0-9])/g, (_, c: string) => c.toUpperCase()).replace(/-/g, '');
 }
 
 function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): string {
@@ -45,7 +46,7 @@ function applyPrefix(key: string, prefix: string | undefined, naming: NamingConv
   }
   normalizedPrefix = normalizedPrefix.replace(/[^A-Za-z0-9_$]/g, '');
   if (/^\d/.test(normalizedPrefix)) normalizedPrefix = `_${normalizedPrefix}`;
-  if (naming === 'snake') return `${normalizedPrefix}_${key}`;
+  if (naming === 'snake' || naming === 'constant') return `${normalizedPrefix}_${key}`;
   return normalizedPrefix + key.charAt(0).toUpperCase() + key.slice(1);
 }
 

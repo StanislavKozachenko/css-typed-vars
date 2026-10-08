@@ -173,6 +173,48 @@ describe('generateCode', () => {
     expect(result).toContain("my_var: 'var(--my-var)'");
     expect(result).not.toContain('--my--var');
   });
+
+  it('constant naming converts to SCREAMING_SNAKE_CASE', () => {
+    const result = generateCode(['--color-primary', '--spacing-md'], undefined, 'constant');
+    expect(result).toContain("COLOR_PRIMARY: 'var(--color-primary)'");
+    expect(result).toContain("SPACING_MD: 'var(--spacing-md)'");
+  });
+
+  it('constant naming with prefix uses underscore separator', () => {
+    const result = generateCode(['--color-primary'], 'theme', 'constant');
+    expect(result).toContain("THEME_COLOR_PRIMARY: 'var(--color-primary)'");
+  });
+
+  it('constant collapses consecutive dashes into single underscore', () => {
+    const result = generateCode(['--my--var'], undefined, 'constant');
+    expect(result).toContain("MY_VAR: 'var(--my--var)'");
+  });
+
+  it('prefixes digit-starting key with underscore (constant)', () => {
+    const result = generateCode(['--1st-color'], undefined, 'constant');
+    expect(result).toContain("_1ST_COLOR: 'var(--1st-color)'");
+  });
+
+  it('pascal naming converts to PascalCase', () => {
+    const result = generateCode(['--color-primary', '--spacing-md'], undefined, 'pascal');
+    expect(result).toContain("ColorPrimary: 'var(--color-primary)'");
+    expect(result).toContain("SpacingMd: 'var(--spacing-md)'");
+  });
+
+  it('pascal naming with prefix concatenates both capitalized', () => {
+    const result = generateCode(['--color-primary'], 'theme', 'pascal');
+    expect(result).toContain("ThemeColorPrimary: 'var(--color-primary)'");
+  });
+
+  it('pascal collapses consecutive dashes into single boundary', () => {
+    const result = generateCode(['--my--var'], undefined, 'pascal');
+    expect(result).toContain("MyVar: 'var(--my--var)'");
+  });
+
+  it('prefixes digit-starting key with underscore (pascal)', () => {
+    const result = generateCode(['--1st-color'], undefined, 'pascal');
+    expect(result).toContain("_1stColor: 'var(--1st-color)'");
+  });
 });
 
 describe('naming validation', () => {

@@ -123,7 +123,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".d
 | `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside |
 | `--exclude` | Glob pattern for files to exclude (repeatable: `--exclude "**/a/**" --exclude "**/b/**"`) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
-| `--naming` | Key naming: `camelCase` (default), `snake`, `kebab` |
+| `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--watch` | Watch for file changes and regenerate |
 | `--version`, `-v` | Print the version number and exit |
@@ -147,7 +147,7 @@ export default {
   output: 'src/cssVars.ts',
   exclude: ['**/vendor/**', '**/node_modules/**'],
   prefix: 'theme',
-  naming: 'snake', // 'camelCase' | 'snake' | 'kebab'
+  naming: 'snake', // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
 };
 ```
@@ -245,7 +245,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `input` | `string \| string[]` | — | Glob pattern for CSS/SCSS/Less files |
 | `exclude` | `string \| string[]` | — | Glob pattern(s) for files to exclude |
 | `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
-| `naming` | `'camelCase' \| 'snake' \| 'kebab'` | `'camelCase'` | Key naming convention |
+| `naming` | `'camelCase' \| 'snake' \| 'kebab' \| 'constant' \| 'pascal'` | `'camelCase'` | Key naming convention |
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
 
@@ -302,7 +302,7 @@ await generate({
   output: 'src/cssVars.ts',  // or 'src/cssVars.js' → generates .js + .d.ts
   exclude: ['**/vendor/**'],
   prefix: 'theme',
-  naming: 'snake',           // 'camelCase' | 'snake' | 'kebab'
+  naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
 });
 ```
