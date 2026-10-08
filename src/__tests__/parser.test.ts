@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVarNames } from '../parser.js';
+import { parseVarNames, parseVarDeclarations } from '../parser.js';
 
 describe('parseVarNames', () => {
   it('extracts custom properties from :root block', () => {
@@ -152,5 +152,51 @@ describe('parseVarNames', () => {
     const result = parseVarNames(css, ['.dark']);
     expect(result.filter(n => n === '--color')).toHaveLength(1);
     expect(result).toContain('--extra');
+  });
+});
+
+describe('parseVarDeclarations', () => {
+  it('captures the declared value alongside the name', () => {
+    const css = `:root { --color-primary: red; --spacing-md: 8px; }`;
+    const result = parseVarDeclarations(css);
+    expect(result.get('--color-primary')).toBe('red');
+    expect(result.get('--spacing-md')).toBe('8px');
+  });
+
+  it('trims surrounding whitespace from the value', () => {
+    const css = `:root {\n  --color-primary:   red  ;\n}`;
+    expect(parseVarDeclarations(css).get('--color-primary')).toBe('red');
+  });
+
+  it('preserves a quoted value verbatim including its quotes', () => {
+    const css = `:root { --content: "hello world"; }`;
+    expect(parseVarDeclarations(css).get('--content')).toBe('"hello world"');
+  });
+
+  it('does not stop at a semicolon inside a quoted value', () => {
+    const css = `:root { --content: "a;b"; --after: 1px; }`;
+    expect(parseVarDeclarations(css).get('--content')).toBe('"a;b"');
+    expect(parseVarDeclarations(css).get('--after')).toBe('1px');
+  });
+
+  it('captures a value containing nested parens like calc() or var()', () => {
+    const css = `:root { --double: calc(1px * 2); --fallback: var(--x, blue); }`;
+    expect(parseVarDeclarations(css).get('--double')).toBe('calc(1px * 2)');
+    expect(parseVarDeclarations(css).get('--fallback')).toBe('var(--x, blue)');
+  });
+
+  it('keeps only the last declared value when a name is declared twice', () => {
+    const css = `:root { --color: red; } :root { --color: blue; }`;
+    expect(parseVarDeclarations(css).get('--color')).toBe('blue');
+  });
+
+  it('strips comments from the surrounding block without corrupting the value', () => {
+    const css = `:root {\n  /* a comment */\n  --color-primary: red; // trailing SCSS comment\n}`;
+    expect(parseVarDeclarations(css).get('--color-primary')).toBe('red');
+  });
+
+  it('handles a declaration at the end of a block with no trailing semicolon', () => {
+    const css = `:root { --color-primary: red }`;
+    expect(parseVarDeclarations(css).get('--color-primary')).toBe('red');
   });
 });
