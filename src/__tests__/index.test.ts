@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { generate } from '../index.js';
+import { generate, checkGenerated } from '../index.js';
 
 let dir: string;
 
@@ -190,5 +190,61 @@ describe('generate', () => {
       expect.stringContaining('multiple CSS variables map to the same key "myVar" (--my--var, --my-var)'),
     );
     warn.mockRestore();
+  });
+});
+
+describe('checkGenerated', () => {
+  it('returns false when the output file does not exist yet', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'check-missing.css');
+    const output = join(dir, 'checkMissingVars.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    expect(await checkGenerated({ input, output })).toBe(false);
+  });
+
+  it('returns true when the existing file matches what would be generated', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'check-fresh.css');
+    const output = join(dir, 'checkFreshVars.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+    expect(await checkGenerated({ input, output })).toBe(true);
+  });
+
+  it('returns false when the CSS source changed since the file was generated', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'check-stale.css');
+    const output = join(dir, 'checkStaleVars.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+    await writeFile(input, ':root { --color-primary: blue; }');
+    expect(await checkGenerated({ input, output })).toBe(false);
+  });
+
+  it('does not write the output file', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'check-no-write.css');
+    const output = join(dir, 'checkNoWriteVars.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await checkGenerated({ input, output });
+    await expect(readFile(output, 'utf8')).rejects.toThrow();
+  });
+
+  it('also checks the .d.ts sidecar for JS output', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'check-js.css');
+    const output = join(dir, 'checkJsVars.js');
+    const dtsPath = join(dir, 'checkJsVars.d.ts');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await generate({ input, output });
+    expect(await checkGenerated({ input, output })).toBe(true);
+
+    await writeFile(dtsPath, 'export declare const cssVars: {};');
+    expect(await checkGenerated({ input, output })).toBe(false);
   });
 });

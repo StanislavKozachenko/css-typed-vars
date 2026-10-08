@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
-import { generate } from './index.js';
+import { generate, checkGenerated } from './index.js';
 import { VALID_NAMINGS, type NamingConvention } from './generator.js';
 
 const args = process.argv.slice(2).flatMap((arg) => {
@@ -22,6 +22,7 @@ const getArgs = (flag: string): string[] => {
   return result;
 };
 const watchMode = args.includes('--watch');
+const checkMode = args.includes('--check');
 
 interface Config {
   input?: string | string[];
@@ -93,9 +94,24 @@ async function main(): Promise<void> {
   const selectors = selectorArgs.length > 0 ? selectorArgs : config.selectors;
 
   if (!input || !output) {
-    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch]');
+    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check]');
     console.error('Or add a css-typed-vars.config.js file with input and output fields.');
     process.exit(1);
+  }
+
+  if (checkMode && watchMode) {
+    console.error('css-typed-vars: --check cannot be combined with --watch.');
+    process.exit(1);
+  }
+
+  if (checkMode) {
+    const upToDate = await checkGenerated({ input, output, exclude, prefix, naming, selectors });
+    if (!upToDate) {
+      console.error(`css-typed-vars: "${output}" is out of date. Run without --check to regenerate.`);
+      process.exit(1);
+    }
+    console.log(`css-typed-vars: "${output}" is up to date.`);
+    return;
   }
 
   await run(input, output, exclude, prefix, naming, selectors);
