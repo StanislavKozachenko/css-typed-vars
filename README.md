@@ -35,6 +35,8 @@
 
 `css-typed-vars` scans your CSS files and gives you typed constants. Use `cssVars.colorPrimary` instead — TypeScript catches missing variables at compile time.
 
+Each generated key also carries a `/** @default ... */` comment with the property's declared CSS value, so your editor shows it on hover and autocomplete.
+
 ## Installation
 
 ```sh
@@ -310,7 +312,7 @@ await generate({
 Lower-level exports:
 
 ```ts
-import { parseVarNames, generateCode, scanVarNames } from 'css-typed-vars';
+import { parseVarNames, parseVarDeclarations, generateCode, scanVarNames, scanVarDeclarations } from 'css-typed-vars';
 ```
 
 ## Supported formats
