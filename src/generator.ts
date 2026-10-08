@@ -83,17 +83,32 @@ function buildEntries(
   varNames: string[],
   prefix: string | undefined,
   naming: NamingConvention | undefined,
-): Array<{ key: string; name: string }> {
-  const byKey = new Map<string, string>();
+  declarations: Map<string, string> | undefined,
+): Array<{ key: string; name: string; value?: string }> {
+  const byKey = new Map<string, { name: string; value?: string }>();
   for (const name of varNames) {
     const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
-    byKey.set(key, name);
+    byKey.set(key, { name, value: declarations?.get(name) });
   }
-  return [...byKey].map(([key, name]) => ({ key, name }));
+  return [...byKey].map(([key, entry]) => ({ key, ...entry }));
 }
 
-export function generateCode(varNames: string[], prefix?: string, naming?: NamingConvention): string {
-  const entries = buildEntries(varNames, prefix, naming).map(({ key, name }) => `  ${key}: 'var(${name})',`);
+// A value containing `*/` would otherwise prematurely close the block comment
+// it's embedded in.
+function formatDefaultComment(value: string): string {
+  return `  /** @default ${value.replace(/\*\//g, '*\\/')} */`;
+}
+
+export function generateCode(
+  varNames: string[],
+  prefix?: string,
+  naming?: NamingConvention,
+  declarations?: Map<string, string>,
+): string {
+  const entries = buildEntries(varNames, prefix, naming, declarations).flatMap(({ key, name, value }) => [
+    ...(value ? [formatDefaultComment(value)] : []),
+    `  ${key}: 'var(${name})',`,
+  ]);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -105,8 +120,16 @@ export function generateCode(varNames: string[], prefix?: string, naming?: Namin
   ].join('\n');
 }
 
-export function generateJs(varNames: string[], prefix?: string, naming?: NamingConvention): string {
-  const entries = buildEntries(varNames, prefix, naming).map(({ key, name }) => `  ${key}: 'var(${name})',`);
+export function generateJs(
+  varNames: string[],
+  prefix?: string,
+  naming?: NamingConvention,
+  declarations?: Map<string, string>,
+): string {
+  const entries = buildEntries(varNames, prefix, naming, declarations).flatMap(({ key, name, value }) => [
+    ...(value ? [formatDefaultComment(value)] : []),
+    `  ${key}: 'var(${name})',`,
+  ]);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -116,8 +139,16 @@ export function generateJs(varNames: string[], prefix?: string, naming?: NamingC
   ].join('\n');
 }
 
-export function generateDeclaration(varNames: string[], prefix?: string, naming?: NamingConvention): string {
-  const entries = buildEntries(varNames, prefix, naming).map(({ key, name }) => `  ${key}: 'var(${name})';`);
+export function generateDeclaration(
+  varNames: string[],
+  prefix?: string,
+  naming?: NamingConvention,
+  declarations?: Map<string, string>,
+): string {
+  const entries = buildEntries(varNames, prefix, naming, declarations).flatMap(({ key, name, value }) => [
+    ...(value ? [formatDefaultComment(value)] : []),
+    `  ${key}: 'var(${name})';`,
+  ]);
   return [
     'export declare const cssVars: {',
     ...entries,
