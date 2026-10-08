@@ -117,6 +117,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme --naming snake
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for CI: exits 1 if out of date
 ```
 
 | Flag | Description |
@@ -128,6 +129,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".d
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--watch` | Watch for file changes and regenerate |
+| `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
 
 CLI flags override values from the config file.
@@ -308,6 +310,8 @@ await generate({
   selectors: ['.dark', '[data-theme="dark"]'],
 });
 ```
+
+`checkGenerated(options)` takes the same options and returns `Promise<boolean>` — `true` if the existing output already matches what would be generated, without writing anything. Same thing `--check` does on the CLI.
 
 Lower-level exports:
 
