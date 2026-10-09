@@ -17,6 +17,7 @@ export interface Options {
   prefix?: string;
   naming?: NamingConvention;
   selectors?: string[];
+  group?: boolean;
 }
 
 const VIRTUAL_ID = 'css-typed-vars/vars';
@@ -59,7 +60,7 @@ export default createUnplugin((options: Options) => {
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
-            const content = generateDeclaration(names, options.prefix, options.naming, declarations);
+            const content = generateDeclaration(names, options.prefix, options.naming, declarations, options.group);
             // Writes are serialized (not just generation-gated before starting) so a slower
             // write for an older generation can never complete after a newer one's and clobber it.
             writeQueue = writeQueue.then(async () => {
@@ -99,7 +100,7 @@ export default createUnplugin((options: Options) => {
       warnOnCollisions(names, options.prefix, options.naming);
       const dtsPath = getDtsPath(options);
       if (!dtsPath) return;
-      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations), 'utf8');
+      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations, options.group), 'utf8');
     },
 
     resolveId(id: string) {
@@ -110,7 +111,7 @@ export default createUnplugin((options: Options) => {
       if (id === RESOLVED_ID) {
         const declarations = await (cachedDeclarations ?? scan());
         const names = [...declarations.keys()].sort();
-        return generateJs(names, options.prefix, options.naming, declarations);
+        return generateJs(names, options.prefix, options.naming, declarations, options.group);
       }
     },
   };

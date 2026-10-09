@@ -15,6 +15,7 @@ export interface GenerateOptions {
   prefix?: string;
   naming?: NamingConvention;
   selectors?: string[];
+  group?: boolean;
 }
 
 interface ComputedOutput {
@@ -35,12 +36,12 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
 
   const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);
   if (jsExtMatch) {
-    const content = generateJs(names, options.prefix, options.naming, declarations);
+    const content = generateJs(names, options.prefix, options.naming, declarations, options.group);
     const dtsPath = outPath.slice(0, -jsExtMatch[0].length) + '.d.ts';
-    const dtsContent = generateDeclaration(names, options.prefix, options.naming, declarations);
+    const dtsContent = generateDeclaration(names, options.prefix, options.naming, declarations, options.group);
     return { outPath, content, dtsPath, dtsContent };
   }
-  return { outPath, content: generateCode(names, options.prefix, options.naming, declarations) };
+  return { outPath, content: generateCode(names, options.prefix, options.naming, declarations, options.group) };
 }
 
 export async function generate(options: GenerateOptions): Promise<void> {

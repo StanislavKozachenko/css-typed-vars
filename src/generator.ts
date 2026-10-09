@@ -13,9 +13,23 @@ function convertCase(value: string, naming: NamingConvention): string {
   return value.replace(/-+([a-z0-9])/g, (_, c: string) => c.toUpperCase()).replace(/-/g, '');
 }
 
-function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): string {
-  const key = convertCase(cssVarName.replace(/^--/, ''), naming);
+function toKeyFragment(fragment: string, naming: NamingConvention = 'camelCase'): string {
+  const key = convertCase(fragment, naming);
   return naming !== 'kebab' && /^\d/.test(key) ? `_${key}` : key;
+}
+
+function toKey(cssVarName: string, naming: NamingConvention = 'camelCase'): string {
+  return toKeyFragment(cssVarName.replace(/^--/, ''), naming);
+}
+
+// A var name splits into a group (its first hyphen-delimited segment) and the
+// rest, e.g. `--color-primary` -> group "color", rest "primary". A name with
+// no hyphen (e.g. `--color`) has nothing to group by.
+function splitGroupKey(cssVarName: string): { group: string; rest: string } | null {
+  const stripped = cssVarName.replace(/^--/, '');
+  const dashIndex = stripped.indexOf('-');
+  if (dashIndex === -1) return null;
+  return { group: stripped.slice(0, dashIndex), rest: stripped.slice(dashIndex + 1) };
 }
 
 const LINE_SEPARATOR_CHAR = String.fromCharCode(8232);
@@ -93,30 +107,106 @@ function buildEntries(
   return [...byKey].map(([key, entry]) => ({ key, ...entry }));
 }
 
+type Entry = { key: string; name: string; value?: string };
+
+function buildGroupedEntries(
+  varNames: string[],
+  naming: NamingConvention | undefined,
+  declarations: Map<string, string> | undefined,
+): { groups: Array<{ key: string; entries: Entry[] }>; ungrouped: Entry[] } {
+  const groupMap = new Map<string, Map<string, { name: string; value?: string }>>();
+  const ungroupedMap = new Map<string, { name: string; value?: string }>();
+  for (const name of varNames) {
+    const value = declarations?.get(name);
+    const split = splitGroupKey(name);
+    if (!split) {
+      ungroupedMap.set(formatKey(toKey(name, naming), naming), { name, value });
+      continue;
+    }
+    const groupKey = formatKey(toKeyFragment(split.group, naming), naming);
+    const leafKey = formatKey(toKeyFragment(split.rest, naming), naming);
+    let leafMap = groupMap.get(groupKey);
+    if (!leafMap) {
+      leafMap = new Map();
+      groupMap.set(groupKey, leafMap);
+    }
+    leafMap.set(leafKey, { name, value });
+  }
+  // A standalone variable (e.g. `--color`) whose key collides with a group's
+  // key (e.g. from `--color-primary`) can't coexist with that group as a
+  // sibling property — the group wins and the standalone entry is dropped.
+  for (const groupKey of groupMap.keys()) ungroupedMap.delete(groupKey);
+  const groups = [...groupMap].map(([key, leafMap]) => ({
+    key,
+    entries: [...leafMap].map(([key, entry]) => ({ key, ...entry })),
+  }));
+  const ungrouped = [...ungroupedMap].map(([key, entry]) => ({ key, ...entry }));
+  return { groups, ungrouped };
+}
+
 // A value containing `*/` would otherwise prematurely close the block comment
 // it's embedded in.
-function formatDefaultComment(value: string): string {
-  return `  /** @default ${value.replace(/\*\//g, '*\\/')} */`;
+function formatDefaultComment(value: string, indent = '  '): string {
+  return `${indent}/** @default ${value.replace(/\*\//g, '*\\/')} */`;
 }
+
+function renderEntryLines(
+  entries: Entry[],
+  indent: string,
+  lineFor: (key: string, name: string) => string,
+): string[] {
+  return entries.flatMap(({ key, name, value }) => [
+    ...(value ? [formatDefaultComment(value, indent)] : []),
+    `${indent}${lineFor(key, name)}`,
+  ]);
+}
+
+function renderGroupedBlock(
+  varNames: string[],
+  naming: NamingConvention | undefined,
+  declarations: Map<string, string> | undefined,
+  indent: string,
+  closeSuffix: string,
+  lineFor: (key: string, name: string) => string,
+): string[] {
+  const { groups, ungrouped } = buildGroupedEntries(varNames, naming, declarations);
+  const lines: string[] = [];
+  for (const group of groups) {
+    lines.push(`${indent}${group.key}: {`);
+    lines.push(...renderEntryLines(group.entries, indent + '  ', lineFor));
+    lines.push(`${indent}}${closeSuffix}`);
+  }
+  lines.push(...renderEntryLines(ungrouped, indent, lineFor));
+  return lines;
+}
+
+function assertGroupPrefixCompatible(prefix: string | undefined, group: boolean | undefined): void {
+  if (group && prefix) {
+    throw new Error('css-typed-vars: the "group" option cannot be combined with "prefix".');
+  }
+}
+
+const codeLineFor = (key: string, name: string) => `${key}: 'var(${name})',`;
+const declarationLineFor = (key: string, name: string) => `${key}: 'var(${name})';`;
 
 export function generateCode(
   varNames: string[],
   prefix?: string,
   naming?: NamingConvention,
   declarations?: Map<string, string>,
+  group?: boolean,
 ): string {
-  const entries = buildEntries(varNames, prefix, naming, declarations).flatMap(({ key, name, value }) => [
-    ...(value ? [formatDefaultComment(value)] : []),
-    `  ${key}: 'var(${name})',`,
-  ]);
+  assertGroupPrefixCompatible(prefix, group);
+  const entries = group
+    ? renderGroupedBlock(varNames, naming, declarations, '  ', ',', codeLineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations), '  ', codeLineFor);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
     ...entries,
     '} as const;',
     '',
-    'export type CssVarName = keyof typeof cssVars;',
-    '',
+    ...(group ? [] : ['export type CssVarName = keyof typeof cssVars;', '']),
   ].join('\n');
 }
 
@@ -125,11 +215,12 @@ export function generateJs(
   prefix?: string,
   naming?: NamingConvention,
   declarations?: Map<string, string>,
+  group?: boolean,
 ): string {
-  const entries = buildEntries(varNames, prefix, naming, declarations).flatMap(({ key, name, value }) => [
-    ...(value ? [formatDefaultComment(value)] : []),
-    `  ${key}: 'var(${name})',`,
-  ]);
+  assertGroupPrefixCompatible(prefix, group);
+  const entries = group
+    ? renderGroupedBlock(varNames, naming, declarations, '  ', ',', codeLineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations), '  ', codeLineFor);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -144,16 +235,17 @@ export function generateDeclaration(
   prefix?: string,
   naming?: NamingConvention,
   declarations?: Map<string, string>,
+  group?: boolean,
 ): string {
-  const entries = buildEntries(varNames, prefix, naming, declarations).flatMap(({ key, name, value }) => [
-    ...(value ? [formatDefaultComment(value)] : []),
-    `  ${key}: 'var(${name})';`,
-  ]);
+  assertGroupPrefixCompatible(prefix, group);
+  const entries = group
+    ? renderGroupedBlock(varNames, naming, declarations, '  ', ';', declarationLineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations), '  ', declarationLineFor);
   return [
     'export declare const cssVars: {',
     ...entries,
     '};',
-    'export type CssVarName = keyof typeof cssVars;',
+    ...(group ? [] : ['export type CssVarName = keyof typeof cssVars;']),
     '',
   ].join('\n');
 }
