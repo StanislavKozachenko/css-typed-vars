@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations, scanUsedKeys } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanCss } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -189,5 +189,42 @@ describe('scanUsedKeys', () => {
     const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`, `${usageDir}/c.ts`);
     expect(result.has('spacingLg')).toBe(false);
     expect(result.has('colorPrimary')).toBe(true);
+  });
+});
+
+describe('scanCss', () => {
+  let propsDir: string;
+
+  beforeAll(async () => {
+    propsDir = await mkdtemp(join(tmpdir(), 'css-typed-vars-props-'));
+    await writeFile(join(propsDir, 'a.css'), `
+      @property --color-primary { syntax: '<color>'; inherits: false; initial-value: #3b82f6; }
+      :root { --color-primary: #3b82f6; --spacing-md: 8px; }
+    `);
+    await writeFile(join(propsDir, 'b.css'), `@property --color-primary { syntax: '<length>'; }`);
+  });
+
+  afterAll(async () => {
+    await rm(propsDir, { recursive: true });
+  });
+
+  it('returns both declarations and property rules from a single scan', async () => {
+    const result = await scanCss(`${propsDir}/a.css`);
+    expect(result.declarations.get('--color-primary')).toBe('#3b82f6');
+    expect(result.declarations.get('--spacing-md')).toBe('8px');
+    expect(result.properties.get('--color-primary')?.syntax).toBe("'<color>'");
+  });
+
+  it('resolves conflicting property rules by file order, not read-completion timing', async () => {
+    const aThenB = await scanCss([`${propsDir}/a.css`, `${propsDir}/b.css`]);
+    expect(aThenB.properties.get('--color-primary')?.syntax).toBe("'<length>'");
+
+    const bThenA = await scanCss([`${propsDir}/b.css`, `${propsDir}/a.css`]);
+    expect(bThenA.properties.get('--color-primary')?.syntax).toBe("'<color>'");
+  });
+
+  it('returns an empty properties map when there are no @property rules', async () => {
+    const result = await scanCss(`${dir}/a.css`);
+    expect(result.properties.size).toBe(0);
   });
 });

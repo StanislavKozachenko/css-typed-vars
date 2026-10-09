@@ -177,6 +177,22 @@ describe('generate', () => {
     expect(dts).toContain("/** @default red */\n  colorPrimary: 'var(--color-primary)';");
   });
 
+  it('emits an @syntax JSDoc comment and a union type from an @property rule', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const input = join(dir, 'property-test.css');
+    const output = join(dir, 'propertyVars.ts');
+    await writeFile(input, `
+      @property --theme-mode { syntax: "light | dark | system"; inherits: true; initial-value: light; }
+      :root { --theme-mode: light; }
+    `);
+
+    await generate({ input, output });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("/** @syntax light | dark | system */\n  themeMode: 'var(--theme-mode)',");
+    expect(result).toContain("export type ThemeModeSyntax = 'light' | 'dark' | 'system';");
+  });
+
   it('warns when generated keys collide', async () => {
     const { writeFile } = await import('node:fs/promises');
     const input = join(dir, 'collision-test.css');

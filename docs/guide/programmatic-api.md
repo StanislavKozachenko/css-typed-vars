@@ -56,13 +56,17 @@ if (unused.length > 0) {
 import {
   parseVarNames,         // (css: string, selectors?: string[]) => string[]
   parseVarDeclarations,  // (css: string, selectors?: string[]) => Map<string, string>
+  parsePropertyRules,    // (css: string) => Map<string, PropertyRule>
   scanVarNames,          // (patterns, exclude?, selectors?) => Promise<string[]>
   scanVarDeclarations,   // (patterns, exclude?, selectors?) => Promise<Map<string, string>>
+  scanCss,               // (patterns, exclude?, selectors?) => Promise<{ declarations, properties }>
   scanUsedKeys,          // (patterns, exclude?) => Promise<Set<string>>
-  generateCode,          // (varNames, prefix?, naming?, declarations?, group?) => string
+  generateCode,          // (varNames, prefix?, naming?, declarations?, group?, properties?) => string
   generateJs,
   generateDeclaration,
 } from 'css-typed-vars';
 ```
 
 `parseVarDeclarations`/`scanVarDeclarations` return a `Map` from CSS variable name to its declared value — the same data `generate()` uses internally to emit the `@default` JSDoc comments. Useful if you want to build your own tooling on top of the scan.
+
+`parsePropertyRules`/`scanCss` return `@property` rule data (`{ syntax?, inherits?, initialValue? }` per variable) — the same data `generate()` uses to emit `@syntax` comments and enum union types. `scanCss` reads each matched file once and returns both declarations and property rules together, so you don't pay for the file scan twice if you need both.

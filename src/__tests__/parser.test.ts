@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVarNames, parseVarDeclarations } from '../parser.js';
+import { parseVarNames, parseVarDeclarations, parsePropertyRules } from '../parser.js';
 
 describe('parseVarNames', () => {
   it('extracts custom properties from :root block', () => {
@@ -227,5 +227,55 @@ describe('parseVarDeclarations', () => {
   it('handles a declaration at the end of a block with no trailing semicolon', () => {
     const css = `:root { --color-primary: red }`;
     expect(parseVarDeclarations(css).get('--color-primary')).toBe('red');
+  });
+});
+
+describe('parsePropertyRules', () => {
+  it('parses syntax, inherits, and initial-value descriptors', () => {
+    const css = `@property --color-primary {
+      syntax: '<color>';
+      inherits: false;
+      initial-value: #3b82f6;
+    }`;
+    const rule = parsePropertyRules(css).get('--color-primary');
+    expect(rule?.syntax).toBe("'<color>'");
+    expect(rule?.inherits).toBe('false');
+    expect(rule?.initialValue).toBe('#3b82f6');
+  });
+
+  it('parses an enum-like custom-ident syntax', () => {
+    const css = `@property --theme-mode { syntax: "light | dark | system"; inherits: true; initial-value: light; }`;
+    expect(parsePropertyRules(css).get('--theme-mode')?.syntax).toBe('"light | dark | system"');
+  });
+
+  it('returns an empty map when there are no @property rules', () => {
+    const css = `:root { --color-primary: red; }`;
+    expect(parsePropertyRules(css).size).toBe(0);
+  });
+
+  it('ignores a rule with no recognized descriptors', () => {
+    const css = `@property --color-primary { /* empty */ }`;
+    expect(parsePropertyRules(css).has('--color-primary')).toBe(false);
+  });
+
+  it('keeps only the last rule when the same property is registered twice', () => {
+    const css = `
+      @property --color-primary { syntax: '<color>'; }
+      @property --color-primary { syntax: '<length>'; }
+    `;
+    expect(parsePropertyRules(css).get('--color-primary')?.syntax).toBe("'<length>'");
+  });
+
+  it('strips comments before parsing', () => {
+    const css = `@property --color-primary {
+      /* a comment */
+      syntax: '<color>'; // trailing comment
+    }`;
+    expect(parsePropertyRules(css).get('--color-primary')?.syntax).toBe("'<color>'");
+  });
+
+  it('does not confuse a descriptor name that is a substring of a longer token', () => {
+    const css = `@property --x { syntax: '<color>'; -my-inherits: true; }`;
+    expect(parsePropertyRules(css).get('--x')?.inherits).toBeUndefined();
   });
 });

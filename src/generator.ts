@@ -1,3 +1,5 @@
+import type { PropertyRule } from './parser.js';
+
 export type NamingConvention = 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal';
 
 export const VALID_NAMINGS: NamingConvention[] = ['camelCase', 'snake', 'kebab', 'constant', 'pascal'];
@@ -100,34 +102,37 @@ export function warnOnCollisions(varNames: string[], prefix?: string, naming?: N
   }
 }
 
+type Entry = { key: string; name: string; value?: string; syntax?: string };
+
 function buildEntries(
   varNames: string[],
   prefix: string | undefined,
   naming: NamingConvention | undefined,
   declarations: Map<string, string> | undefined,
-): Array<{ key: string; name: string; value?: string }> {
-  const byKey = new Map<string, { name: string; value?: string }>();
+  properties: Map<string, PropertyRule> | undefined,
+): Entry[] {
+  const byKey = new Map<string, { name: string; value?: string; syntax?: string }>();
   for (const name of varNames) {
     const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
-    byKey.set(key, { name, value: declarations?.get(name) });
+    byKey.set(key, { name, value: declarations?.get(name), syntax: properties?.get(name)?.syntax });
   }
   return [...byKey].map(([key, entry]) => ({ key, ...entry }));
 }
-
-type Entry = { key: string; name: string; value?: string };
 
 function buildGroupedEntries(
   varNames: string[],
   naming: NamingConvention | undefined,
   declarations: Map<string, string> | undefined,
+  properties: Map<string, PropertyRule> | undefined,
 ): { groups: Array<{ key: string; entries: Entry[] }>; ungrouped: Entry[] } {
-  const groupMap = new Map<string, Map<string, { name: string; value?: string }>>();
-  const ungroupedMap = new Map<string, { name: string; value?: string }>();
+  const groupMap = new Map<string, Map<string, { name: string; value?: string; syntax?: string }>>();
+  const ungroupedMap = new Map<string, { name: string; value?: string; syntax?: string }>();
   for (const name of varNames) {
     const value = declarations?.get(name);
+    const syntax = properties?.get(name)?.syntax;
     const split = splitGroupKey(name);
     if (!split) {
-      ungroupedMap.set(formatKey(toKey(name, naming), naming), { name, value });
+      ungroupedMap.set(formatKey(toKey(name, naming), naming), { name, value, syntax });
       continue;
     }
     const groupKey = formatKey(toKeyFragment(split.group, naming), naming);
@@ -137,7 +142,7 @@ function buildGroupedEntries(
       leafMap = new Map();
       groupMap.set(groupKey, leafMap);
     }
-    leafMap.set(leafKey, { name, value });
+    leafMap.set(leafKey, { name, value, syntax });
   }
   // A standalone variable (e.g. `--color`) whose key collides with a group's
   // key (e.g. from `--color-primary`) can't coexist with that group as a
@@ -157,13 +162,80 @@ function formatDefaultComment(value: string, indent = '  '): string {
   return `${indent}/** @default ${value.replace(/\*\//g, '*\\/')} */`;
 }
 
+// `@property`'s `syntax` descriptor is always a quoted string, e.g. "'<color>'"
+// or '"small | medium | large"' — strip the outer quotes for display.
+function unquoteCssString(value: string): string {
+  const quote = value[0];
+  if ((quote === '"' || quote === "'") && value[value.length - 1] === quote) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function formatSyntaxComment(syntax: string, indent = '  '): string {
+  return `${indent}/** @syntax ${unquoteCssString(syntax).replace(/\*\//g, '*\\/')} */`;
+}
+
+// Matches a `syntax` descriptor that's a pipe-separated list of custom idents,
+// e.g. "small | medium | large" — the one case where `@property` constrains a
+// variable to a closed set of values we can turn into a TS union type. Generic
+// data types like `<color>` or `<length>+` (and the universal `*`) don't match.
+const ENUM_SYNTAX_RE = /^[\w-]+(?:\s*\|\s*[\w-]+)+$/;
+
+function parseEnumSyntax(syntax: string): string[] | null {
+  const unquoted = unquoteCssString(syntax).trim();
+  if (!ENUM_SYNTAX_RE.test(unquoted)) return null;
+  return unquoted.split('|').map((v) => v.trim());
+}
+
+function syntaxTypeName(cssVarName: string): string {
+  const pascal = convertCase(cssVarName.replace(/^--/, ''), 'pascal');
+  return (/^\d/.test(pascal) ? `_${pascal}` : pascal) + 'Syntax';
+}
+
+// One exported union type per variable whose @property syntax is an enum-like
+// custom-ident list, e.g. `export type ThemeModeSyntax = 'light' | 'dark';`.
+// Not grouped/prefixed — these are TS type names, not object keys.
+function buildSyntaxTypes(
+  varNames: string[],
+  properties: Map<string, PropertyRule> | undefined,
+): Array<{ name: string; values: string[] }> {
+  if (!properties) return [];
+  const byName = new Map<string, string[]>();
+  for (const name of varNames) {
+    const values = parseEnumSyntax(properties.get(name)?.syntax ?? '');
+    if (values) byName.set(syntaxTypeName(name), values);
+  }
+  return [...byName].map(([name, values]) => ({ name, values }));
+}
+
+function renderSyntaxTypeLines(types: Array<{ name: string; values: string[] }>): string[] {
+  return types.map(({ name, values }) => `export type ${name} = ${values.map((v) => `'${escapeSingleQuoted(v)}'`).join(' | ')};`);
+}
+
+// Builds the trailing `export type` blocks (CssVarName, then syntax enum
+// types) as separate blocks, so callers can join them with the blank-line
+// convention that fits their output (generateCode vs generateDeclaration).
+function buildTailBlocks(
+  varNames: string[],
+  group: boolean | undefined,
+  properties: Map<string, PropertyRule> | undefined,
+): string[][] {
+  const blocks: string[][] = [];
+  if (!group) blocks.push(['export type CssVarName = keyof typeof cssVars;']);
+  const syntaxLines = renderSyntaxTypeLines(buildSyntaxTypes(varNames, properties));
+  if (syntaxLines.length > 0) blocks.push(syntaxLines);
+  return blocks;
+}
+
 function renderEntryLines(
   entries: Entry[],
   indent: string,
   lineFor: (key: string, name: string) => string,
 ): string[] {
-  return entries.flatMap(({ key, name, value }) => [
+  return entries.flatMap(({ key, name, value, syntax }) => [
     ...(value ? [formatDefaultComment(value, indent)] : []),
+    ...(syntax ? [formatSyntaxComment(syntax, indent)] : []),
     `${indent}${lineFor(key, name)}`,
   ]);
 }
@@ -172,11 +244,12 @@ function renderGroupedBlock(
   varNames: string[],
   naming: NamingConvention | undefined,
   declarations: Map<string, string> | undefined,
+  properties: Map<string, PropertyRule> | undefined,
   indent: string,
   closeSuffix: string,
   lineFor: (key: string, name: string) => string,
 ): string[] {
-  const { groups, ungrouped } = buildGroupedEntries(varNames, naming, declarations);
+  const { groups, ungrouped } = buildGroupedEntries(varNames, naming, declarations, properties);
   const lines: string[] = [];
   for (const group of groups) {
     lines.push(`${indent}${group.key}: {`);
@@ -202,18 +275,21 @@ export function generateCode(
   naming?: NamingConvention,
   declarations?: Map<string, string>,
   group?: boolean,
+  properties?: Map<string, PropertyRule>,
 ): string {
   assertGroupPrefixCompatible(prefix, group);
   const entries = group
-    ? renderGroupedBlock(varNames, naming, declarations, '  ', ',', codeLineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations), '  ', codeLineFor);
+    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', ',', codeLineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', codeLineFor);
+  const blocks = buildTailBlocks(varNames, group, properties);
+  const tailBody = blocks.flatMap((block, i) => (i === 0 ? block : ['', ...block]));
   return [
     '// generated — do not edit',
     'export const cssVars = {',
     ...entries,
     '} as const;',
+    ...(tailBody.length > 0 ? ['', ...tailBody] : []),
     '',
-    ...(group ? [] : ['export type CssVarName = keyof typeof cssVars;', '']),
   ].join('\n');
 }
 
@@ -223,11 +299,12 @@ export function generateJs(
   naming?: NamingConvention,
   declarations?: Map<string, string>,
   group?: boolean,
+  properties?: Map<string, PropertyRule>,
 ): string {
   assertGroupPrefixCompatible(prefix, group);
   const entries = group
-    ? renderGroupedBlock(varNames, naming, declarations, '  ', ',', codeLineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations), '  ', codeLineFor);
+    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', ',', codeLineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', codeLineFor);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -243,16 +320,19 @@ export function generateDeclaration(
   naming?: NamingConvention,
   declarations?: Map<string, string>,
   group?: boolean,
+  properties?: Map<string, PropertyRule>,
 ): string {
   assertGroupPrefixCompatible(prefix, group);
   const entries = group
-    ? renderGroupedBlock(varNames, naming, declarations, '  ', ';', declarationLineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations), '  ', declarationLineFor);
+    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', ';', declarationLineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', declarationLineFor);
+  const blocks = buildTailBlocks(varNames, group, properties);
+  const tailBody = blocks.flatMap((block, i) => (i === 0 ? block : ['', ...block]));
   return [
     'export declare const cssVars: {',
     ...entries,
     '};',
-    ...(group ? [] : ['export type CssVarName = keyof typeof cssVars;']),
+    ...tailBody,
     '',
   ].join('\n');
 }
