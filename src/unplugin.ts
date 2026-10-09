@@ -1,8 +1,8 @@
 import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { scanVarDeclarations } from './scanner.js';
-import { generateJs, generateDeclaration, warnOnCollisions, type NamingConvention } from './generator.js';
+import { scanVarDeclarations, scanUsedKeys } from './scanner.js';
+import { generateJs, generateDeclaration, warnOnCollisions, computeKey, type NamingConvention } from './generator.js';
 
 export interface Options {
   input: string | string[];
@@ -18,6 +18,11 @@ export interface Options {
   naming?: NamingConvention;
   selectors?: string[];
   group?: boolean;
+  /** Prune generated vars with no detected `cssVars.<key>` usage. Requires `usage`, and can't be combined with `group`. */
+  prune?: boolean;
+  /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true. */
+  usage?: string | string[];
+  usageExclude?: string | string[];
 }
 
 const VIRTUAL_ID = 'css-typed-vars/vars';
@@ -34,9 +39,34 @@ function getDtsPath(options: Options): string | null {
 }
 
 export default createUnplugin((options: Options) => {
+  if (options.prune) {
+    if (options.group) throw new Error('css-typed-vars: "prune" cannot be combined with "group".');
+    if (!options.usage) throw new Error('css-typed-vars: "prune" requires "usage" (glob(s) of source files to scan).');
+  }
+
   let cachedDeclarations: Promise<Map<string, string>> | null = null;
 
   const scan = () => scanVarDeclarations(options.input, options.exclude, options.selectors);
+
+  // When `prune` is set, drops names with no detected `cssVars.<key>` usage
+  // (warning about it). A no-op otherwise.
+  const applyPrune = async (names: string[]): Promise<string[]> => {
+    if (!options.prune) return names;
+    const usedKeys = await scanUsedKeys(options.usage!, options.usageExclude);
+    const isUsed = (name: string) => usedKeys.has(computeKey(name, options.prefix, options.naming));
+    const unused = names.filter((name) => !isUsed(name));
+    if (unused.length > 0) {
+      console.warn(`css-typed-vars: pruned ${unused.length} unused variable(s): ${unused.join(', ')}`);
+    }
+    return names.filter(isUsed);
+  };
+
+  // Sorts the scanned names, warns on key collisions, and applies pruning.
+  const resolveNames = async (declarations: Map<string, string>): Promise<string[]> => {
+    const names = [...declarations.keys()].sort();
+    warnOnCollisions(names, options.prefix, options.naming);
+    return applyPrune(names);
+  };
 
   return {
     name: 'css-typed-vars',
@@ -55,8 +85,8 @@ export default createUnplugin((options: Options) => {
           cachedDeclarations = declarationsPromise;
           const declarations = await declarationsPromise;
           if (myGeneration !== generation) return;
-          const names = [...declarations.keys()].sort();
-          warnOnCollisions(names, options.prefix, options.naming);
+          const names = await resolveNames(declarations);
+          if (myGeneration !== generation) return;
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
@@ -96,8 +126,7 @@ export default createUnplugin((options: Options) => {
     async buildStart() {
       cachedDeclarations = scan();
       const declarations = await cachedDeclarations;
-      const names = [...declarations.keys()].sort();
-      warnOnCollisions(names, options.prefix, options.naming);
+      const names = await resolveNames(declarations);
       const dtsPath = getDtsPath(options);
       if (!dtsPath) return;
       await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations, options.group), 'utf8');
@@ -110,7 +139,7 @@ export default createUnplugin((options: Options) => {
     async load(id: string) {
       if (id === RESOLVED_ID) {
         const declarations = await (cachedDeclarations ?? scan());
-        const names = [...declarations.keys()].sort();
+        const names = await applyPrune([...declarations.keys()].sort());
         return generateJs(names, options.prefix, options.naming, declarations, options.group);
       }
     },

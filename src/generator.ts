@@ -69,6 +69,13 @@ function formatKey(key: string, naming: NamingConvention = 'camelCase'): string 
   return key;
 }
 
+// The unquoted object key a CSS var name would get in flat (non-grouped) output —
+// what a consumer actually writes as `cssVars.<key>` or `cssVars['<key>']`. Used by
+// the unused-variable scan to match a declared var against its usage in source.
+export function computeKey(cssVarName: string, prefix?: string, naming?: NamingConvention): string {
+  return applyPrefix(toKey(cssVarName, naming), prefix, naming);
+}
+
 export function findKeyCollisions(
   varNames: string[],
   prefix?: string,

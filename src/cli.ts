@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
-import { generate, checkGenerated } from './index.js';
+import { generate, checkGenerated, findUnusedVars } from './index.js';
 import { VALID_NAMINGS, type NamingConvention } from './generator.js';
 
 const args = process.argv.slice(2).flatMap((arg) => {
@@ -24,6 +24,8 @@ const getArgs = (flag: string): string[] => {
 const watchMode = args.includes('--watch');
 const checkMode = args.includes('--check');
 const groupFlag = args.includes('--group');
+const pruneFlag = args.includes('--prune');
+const pruneCheckMode = args.includes('--prune-check');
 
 interface Config {
   input?: string | string[];
@@ -33,6 +35,9 @@ interface Config {
   naming?: NamingConvention;
   selectors?: string[];
   group?: boolean;
+  prune?: boolean;
+  usage?: string | string[];
+  usageExclude?: string | string[];
 }
 
 async function loadConfig(): Promise<Config> {
@@ -60,17 +65,22 @@ async function loadConfig(): Promise<Config> {
   return {};
 }
 
-async function run(
-  input: string | string[],
-  output: string,
-  exclude?: string | string[],
-  prefix?: string,
-  naming?: NamingConvention,
-  selectors?: string[],
-  group?: boolean,
-): Promise<void> {
-  await generate({ input, output, exclude, prefix, naming, selectors, group });
-  console.log(`Generated → ${output}`);
+interface RunOptions {
+  input: string | string[];
+  output: string;
+  exclude?: string | string[];
+  prefix?: string;
+  naming?: NamingConvention;
+  selectors?: string[];
+  group?: boolean;
+  prune?: boolean;
+  usage?: string | string[];
+  usageExclude?: string | string[];
+}
+
+async function run(options: RunOptions): Promise<void> {
+  await generate(options);
+  console.log(`Generated → ${options.output}`);
 }
 
 async function main(): Promise<void> {
@@ -96,9 +106,14 @@ async function main(): Promise<void> {
   const selectorArgs = getArgs('--selector');
   const selectors = selectorArgs.length > 0 ? selectorArgs : config.selectors;
   const group = groupFlag || config.group;
+  const prune = pruneFlag || config.prune;
+  const usageArgs = getArgs('--usage');
+  const usage = usageArgs.length > 0 ? usageArgs : config.usage;
+  const usageExcludeArgs = getArgs('--usage-exclude');
+  const usageExclude = usageExcludeArgs.length > 0 ? usageExcludeArgs : config.usageExclude;
 
   if (!input || !output) {
-    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group]');
+    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--prune --usage <glob>] [--prune-check --usage <glob>]');
     console.error('Or add a css-typed-vars.config.js file with input and output fields.');
     process.exit(1);
   }
@@ -108,13 +123,40 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (pruneCheckMode && (watchMode || checkMode)) {
+    console.error('css-typed-vars: --prune-check cannot be combined with --watch or --check.');
+    process.exit(1);
+  }
+
   if (group && prefix) {
     console.error('css-typed-vars: --group cannot be combined with --prefix.');
     process.exit(1);
   }
 
+  if ((prune || pruneCheckMode) && group) {
+    console.error('css-typed-vars: --prune/--prune-check cannot be combined with --group.');
+    process.exit(1);
+  }
+
+  if ((prune || pruneCheckMode) && !usage) {
+    console.error('css-typed-vars: --prune/--prune-check requires --usage <glob> (source files to scan for cssVars usage).');
+    process.exit(1);
+  }
+
+  if (pruneCheckMode) {
+    const unused = await findUnusedVars({ input, exclude, selectors, prefix, naming, usage, usageExclude });
+    if (unused.length > 0) {
+      console.error(`css-typed-vars: ${unused.length} unused variable(s): ${unused.join(', ')}`);
+      process.exit(1);
+    }
+    console.log('css-typed-vars: no unused variables.');
+    return;
+  }
+
+  const runOptions: RunOptions = { input, output, exclude, prefix, naming, selectors, group, prune, usage, usageExclude };
+
   if (checkMode) {
-    const upToDate = await checkGenerated({ input, output, exclude, prefix, naming, selectors, group });
+    const upToDate = await checkGenerated(runOptions);
     if (!upToDate) {
       console.error(`css-typed-vars: "${output}" is out of date. Run without --check to regenerate.`);
       process.exit(1);
@@ -123,13 +165,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  await run(input, output, exclude, prefix, naming, selectors, group);
+  await run(runOptions);
 
   if (watchMode) {
     const patterns = Array.isArray(input) ? input : [input];
     const makeHandler = (label: string) => (file: string) => {
       console.log(`${label}: ${file}`);
-      run(input, output, exclude, prefix, naming, selectors, group).catch(console.error);
+      run(runOptions).catch(console.error);
     };
     const ignored = exclude ? (Array.isArray(exclude) ? exclude : [exclude]) : undefined;
     watch(patterns, ignored ? { ignored } : undefined)

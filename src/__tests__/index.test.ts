@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { generate, checkGenerated } from '../index.js';
+import { generate, checkGenerated, findUnusedVars } from '../index.js';
 
 let dir: string;
 
@@ -190,6 +190,90 @@ describe('generate', () => {
       expect.stringContaining('multiple CSS variables map to the same key "myVar" (--my--var, --my-var)'),
     );
     warn.mockRestore();
+  });
+
+  it('prunes a var with no detected usage and warns about it', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const input = join(dir, 'prune-test.css');
+    const output = join(dir, 'pruneVars.ts');
+    const srcDir = join(dir, 'prune-src');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; --spacing-md: 8px; }');
+    await writeFile(join(srcDir, 'app.ts'), 'const c = cssVars.colorPrimary;');
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await generate({ input, output, prune: true, usage: `${srcDir}/*.ts` });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pruned 1 unused variable(s): --spacing-md'));
+    warn.mockRestore();
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("colorPrimary: 'var(--color-primary)'");
+    expect(result).not.toContain('spacingMd');
+  });
+
+  it('keeps every var when all are used', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const input = join(dir, 'prune-all-used.css');
+    const output = join(dir, 'pruneAllUsedVars.ts');
+    const srcDir = join(dir, 'prune-src-2');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; }');
+    await writeFile(join(srcDir, 'app.ts'), 'const c = cssVars.colorPrimary;');
+
+    await generate({ input, output, prune: true, usage: `${srcDir}/*.ts` });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("colorPrimary: 'var(--color-primary)'");
+  });
+
+  it('throws when prune is combined with group', async () => {
+    const input = join(dir, 'prune-group.css');
+    const output = join(dir, 'pruneGroupVars.ts');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await expect(generate({ input, output, prune: true, group: true, usage: `${dir}/*.ts` })).rejects.toThrow(
+      /cannot be combined with "group"/,
+    );
+  });
+
+  it('throws when prune is used without usage', async () => {
+    const input = join(dir, 'prune-no-usage.css');
+    const output = join(dir, 'pruneNoUsageVars.ts');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(input, ':root { --color-primary: red; }');
+
+    await expect(generate({ input, output, prune: true })).rejects.toThrow(/requires "usage"/);
+  });
+});
+
+describe('findUnusedVars', () => {
+  it('reports vars with no detected usage without writing anything', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const input = join(dir, 'unused-test.css');
+    const srcDir = join(dir, 'unused-src');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; --spacing-md: 8px; }');
+    await writeFile(join(srcDir, 'app.ts'), 'const c = cssVars.colorPrimary;');
+
+    const unused = await findUnusedVars({ input, usage: `${srcDir}/*.ts` });
+    expect(unused).toEqual(['--spacing-md']);
+  });
+
+  it('returns an empty array when everything is used', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const input = join(dir, 'unused-none.css');
+    const srcDir = join(dir, 'unused-src-2');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; }');
+    await writeFile(join(srcDir, 'app.ts'), 'cssVars.colorPrimary');
+
+    expect(await findUnusedVars({ input, usage: `${srcDir}/*.ts` })).toEqual([]);
+  });
+
+  it('throws when called without usage', async () => {
+    const input = join(dir, 'unused-no-usage.css');
+    await expect(findUnusedVars({ input })).rejects.toThrow(/requires "usage"/);
   });
 });
 
