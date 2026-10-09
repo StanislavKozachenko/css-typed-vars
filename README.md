@@ -119,6 +119,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for CI: exits 1 if out of date
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --group  # nest keys by first name segment
 ```
 
 | Flag | Description |
@@ -129,6 +130,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
+| `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
 | `--watch` | Watch for file changes and regenerate |
 | `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
@@ -154,6 +156,7 @@ export default {
   prefix: 'theme',
   naming: 'snake', // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  group: false,
 };
 ```
 
@@ -252,6 +255,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
 | `naming` | `'camelCase' \| 'snake' \| 'kebab' \| 'constant' \| 'pascal'` | `'camelCase'` | Key naming convention |
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
+| `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary`. Can't be combined with `prefix` |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
 
 ---
@@ -309,6 +313,7 @@ await generate({
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary
 });
 ```
 

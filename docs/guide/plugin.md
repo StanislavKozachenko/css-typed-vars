@@ -93,4 +93,5 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the [CL
 | `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
 | `naming` | `'camelCase' \| 'snake' \| 'kebab' \| 'constant' \| 'pascal'` | `'camelCase'` | Key naming convention — see [Naming conventions](/guide/naming-conventions) |
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
+| `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary` — see [Grouped output](/guide/cli#grouped-output). Can't be combined with `prefix` |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |

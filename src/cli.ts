@@ -23,6 +23,7 @@ const getArgs = (flag: string): string[] => {
 };
 const watchMode = args.includes('--watch');
 const checkMode = args.includes('--check');
+const groupFlag = args.includes('--group');
 
 interface Config {
   input?: string | string[];
@@ -31,6 +32,7 @@ interface Config {
   prefix?: string;
   naming?: NamingConvention;
   selectors?: string[];
+  group?: boolean;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -65,8 +67,9 @@ async function run(
   prefix?: string,
   naming?: NamingConvention,
   selectors?: string[],
+  group?: boolean,
 ): Promise<void> {
-  await generate({ input, output, exclude, prefix, naming, selectors });
+  await generate({ input, output, exclude, prefix, naming, selectors, group });
   console.log(`Generated → ${output}`);
 }
 
@@ -92,9 +95,10 @@ async function main(): Promise<void> {
   const naming = namingRaw as NamingConvention | undefined;
   const selectorArgs = getArgs('--selector');
   const selectors = selectorArgs.length > 0 ? selectorArgs : config.selectors;
+  const group = groupFlag || config.group;
 
   if (!input || !output) {
-    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check]');
+    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group]');
     console.error('Or add a css-typed-vars.config.js file with input and output fields.');
     process.exit(1);
   }
@@ -104,8 +108,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (group && prefix) {
+    console.error('css-typed-vars: --group cannot be combined with --prefix.');
+    process.exit(1);
+  }
+
   if (checkMode) {
-    const upToDate = await checkGenerated({ input, output, exclude, prefix, naming, selectors });
+    const upToDate = await checkGenerated({ input, output, exclude, prefix, naming, selectors, group });
     if (!upToDate) {
       console.error(`css-typed-vars: "${output}" is out of date. Run without --check to regenerate.`);
       process.exit(1);
@@ -114,13 +123,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  await run(input, output, exclude, prefix, naming, selectors);
+  await run(input, output, exclude, prefix, naming, selectors, group);
 
   if (watchMode) {
     const patterns = Array.isArray(input) ? input : [input];
     const makeHandler = (label: string) => (file: string) => {
       console.log(`${label}: ${file}`);
-      run(input, output, exclude, prefix, naming, selectors).catch(console.error);
+      run(input, output, exclude, prefix, naming, selectors, group).catch(console.error);
     };
     const ignored = exclude ? (Array.isArray(exclude) ? exclude : [exclude]) : undefined;
     watch(patterns, ignored ? { ignored } : undefined)

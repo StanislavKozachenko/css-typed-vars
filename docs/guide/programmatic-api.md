@@ -10,6 +10,7 @@ await generate({
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary — see CLI docs
 });
 ```
 

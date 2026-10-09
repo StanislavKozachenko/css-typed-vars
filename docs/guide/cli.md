@@ -38,6 +38,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for CI: exits 1 if out of date
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --group  # nest keys by first name segment
 ```
 
 | Flag | Description |
@@ -48,6 +49,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming — see [Naming conventions](/guide/naming-conventions) |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
+| `--group` | Nest keys by each variable's first hyphen segment — see [Grouped output](#grouped-output) |
 | `--watch` | Watch for file changes and regenerate |
 | `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
@@ -73,8 +75,41 @@ export default {
   prefix: 'theme',
   naming: 'snake', // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  group: false,
 };
 ```
+
+## Grouped output
+
+Passing `--group` (or `group: true`) nests keys under an object named after each variable's first hyphen segment, instead of a flat object:
+
+```css
+:root {
+  --color-primary: #3b82f6;
+  --color-secondary: #64748b;
+  --spacing-md: 8px;
+  --radius: 4px;
+}
+```
+
+```ts
+export const cssVars = {
+  color: {
+    primary: 'var(--color-primary)',
+    secondary: 'var(--color-secondary)',
+  },
+  spacing: {
+    md: 'var(--spacing-md)',
+  },
+  radius: 'var(--radius)', // no hyphen — stays top-level
+} as const;
+```
+
+Notes:
+- A variable with no hyphen in its name (e.g. `--radius`) has nothing to group by and stays top-level.
+- If a standalone variable's key collides with a group (e.g. both `--color` and `--color-primary` exist), the group wins and the standalone entry is dropped.
+- `group` can't be combined with `prefix`.
+- The `CssVarName` type export is omitted in grouped mode, since `keyof typeof cssVars` would only cover group/top-level names, not individual variables.
 
 ## Using --check in CI
 

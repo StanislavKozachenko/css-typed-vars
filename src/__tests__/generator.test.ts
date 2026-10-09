@@ -366,3 +366,64 @@ describe('JSDoc @default comments', () => {
     expect(result).toContain('/** @default foo *\\/ bar */');
   });
 });
+
+describe('grouped output (group: true)', () => {
+  it('nests entries under their first hyphen segment (generateCode)', () => {
+    const result = generateCode(['--color-primary', '--color-secondary', '--spacing-md'], undefined, undefined, undefined, true);
+    expect(result).toContain('color: {');
+    expect(result).toContain("    primary: 'var(--color-primary)',");
+    expect(result).toContain("    secondary: 'var(--color-secondary)',");
+    expect(result).toContain("  },");
+    expect(result).toContain('spacing: {');
+    expect(result).toContain("    md: 'var(--spacing-md)',");
+  });
+
+  it('leaves a var with no hyphen ungrouped', () => {
+    const result = generateCode(['--radius'], undefined, undefined, undefined, true);
+    expect(result).toContain("  radius: 'var(--radius)',");
+    expect(result).not.toContain('radius: {');
+  });
+
+  it('drops a standalone var when its key collides with a group (group wins)', () => {
+    const result = generateCode(['--color', '--color-primary'], undefined, undefined, undefined, true);
+    expect(result).toContain('color: {');
+    expect(result).toContain("    primary: 'var(--color-primary)',");
+    expect(result).not.toContain("  color: 'var(--color)',");
+  });
+
+  it('omits the CssVarName type export in grouped mode', () => {
+    const result = generateCode(['--color-primary'], undefined, undefined, undefined, true);
+    expect(result).not.toContain('CssVarName');
+  });
+
+  it('applies naming convention to both group and leaf keys', () => {
+    const result = generateCode(['--color-primary'], undefined, 'constant', undefined, true);
+    expect(result).toContain('COLOR: {');
+    expect(result).toContain("    PRIMARY: 'var(--color-primary)',");
+  });
+
+  it('emits @default comments inside groups', () => {
+    const declarations = new Map([['--color-primary', 'red']]);
+    const result = generateCode(['--color-primary'], undefined, undefined, declarations, true);
+    expect(result).toContain("    /** @default red */\n    primary: 'var(--color-primary)',");
+  });
+
+  it('throws when combined with prefix', () => {
+    expect(() => generateCode(['--color-primary'], 'theme', undefined, undefined, true)).toThrow(/cannot be combined with "prefix"/);
+  });
+
+  it('nests entries in generateJs', () => {
+    const result = generateJs(['--color-primary'], undefined, undefined, undefined, true);
+    expect(result).toContain('color: {');
+    expect(result).toContain("    primary: 'var(--color-primary)',");
+  });
+
+  it('nests entries with semicolon member separators in generateDeclaration', () => {
+    const result = generateDeclaration(['--color-primary', '--radius'], undefined, undefined, undefined, true);
+    expect(result).toContain('color: {');
+    expect(result).toContain("    primary: 'var(--color-primary)';");
+    expect(result).toContain('  };');
+    expect(result).toContain("  radius: 'var(--radius)';");
+    expect(result).not.toContain('CssVarName');
+  });
+});
