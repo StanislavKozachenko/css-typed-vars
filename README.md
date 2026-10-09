@@ -120,6 +120,8 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for CI: exits 1 if out of date
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --group  # nest keys by first name segment
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune --usage "src/**/*.{ts,tsx}"        # drop unused vars from the output
+npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check --usage "src/**/*.{ts,tsx}"  # for CI: exits 1 if any var is unused
 ```
 
 | Flag | Description |
@@ -131,9 +133,22 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --group  # nes
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
+| `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). Can't be combined with `--group`. |
+| `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Useful in CI. |
+| `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
+| `--usage-exclude` | Glob of source files to exclude from the usage scan (repeatable) |
 | `--watch` | Watch for file changes and regenerate |
 | `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
+
+### Pruning unused variables
+
+`--prune`/`--prune-check` scan your source files for `cssVars.<key>` (dot access) or `cssVars['<key>']`/`cssVars["<key>"]` (bracket access) usage and compare that against the generated keys. This is a textual scan, not a full parser, so it has two limitations worth knowing:
+
+- It won't see through a renamed import (`import { cssVars as vars } from './cssVars'` — usages via `vars.foo` aren't detected).
+- A match inside a comment or string still counts as "used".
+
+When in doubt, use `--prune-check` in CI to review what it would remove before turning on `--prune` for real.
 
 CLI flags override values from the config file.
 
@@ -157,6 +172,8 @@ export default {
   naming: 'snake', // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
   group: false,
+  prune: false,
+  usage: 'src/**/*.{ts,tsx}',
 };
 ```
 
@@ -256,6 +273,9 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `naming` | `'camelCase' \| 'snake' \| 'kebab' \| 'constant' \| 'pascal'` | `'camelCase'` | Key naming convention |
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary`. Can't be combined with `prefix` |
+| `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` usage. Requires `usage`. Can't be combined with `group` |
+| `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
+| `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
 
 ---
@@ -314,15 +334,19 @@ await generate({
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary
+  prune: false,              // drop vars with no detected cssVars.<key> usage (requires `usage`)
+  usage: 'src/**/*.{ts,tsx}',
 });
 ```
 
 `checkGenerated(options)` takes the same options and returns `Promise<boolean>` — `true` if the existing output already matches what would be generated, without writing anything. Same thing `--check` does on the CLI.
 
+`findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. Same thing `--prune-check` does on the CLI.
+
 Lower-level exports:
 
 ```ts
-import { parseVarNames, parseVarDeclarations, generateCode, scanVarNames, scanVarDeclarations } from 'css-typed-vars';
+import { parseVarNames, parseVarDeclarations, generateCode, scanVarNames, scanVarDeclarations, scanUsedKeys } from 'css-typed-vars';
 ```
 
 ## Supported formats

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -135,5 +135,59 @@ describe('scanVarDeclarations', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('vanished2.css'));
     warn.mockRestore();
     await rm(join(dir, 'vanished2.css'));
+  });
+});
+
+describe('scanUsedKeys', () => {
+  let usageDir: string;
+
+  beforeAll(async () => {
+    usageDir = await mkdtemp(join(tmpdir(), 'css-typed-vars-usage-'));
+    await writeFile(join(usageDir, 'a.tsx'), `
+      import { cssVars } from './cssVars';
+      const style = { color: cssVars.colorPrimary };
+    `);
+    await writeFile(join(usageDir, 'b.ts'), `
+      const key = cssVars['color-secondary'];
+      const other = cssVars["spacing_md"];
+      const templ = cssVars\`not-a-match\`;
+    `);
+    await writeFile(join(usageDir, 'c.ts'), `cssVars.spacingLg /* dup across files */`);
+  });
+
+  afterAll(async () => {
+    await rm(usageDir, { recursive: true });
+  });
+
+  it('finds dot-access usage', async () => {
+    const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`);
+    expect(result.has('colorPrimary')).toBe(true);
+  });
+
+  it('finds single- and double-quoted bracket-access usage', async () => {
+    const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`);
+    expect(result.has('color-secondary')).toBe(true);
+    expect(result.has('spacing_md')).toBe(true);
+  });
+
+  it('unions usage across multiple files', async () => {
+    const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`);
+    expect(result.has('spacingLg')).toBe(true);
+  });
+
+  it('does not match a template-literal call on cssVars', async () => {
+    const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`);
+    expect(result.has('not-a-match')).toBe(false);
+  });
+
+  it('returns an empty set when no files match', async () => {
+    const result = await scanUsedKeys(`${usageDir}/*.vue`);
+    expect(result.size).toBe(0);
+  });
+
+  it('excludes files matching exclude pattern', async () => {
+    const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`, `${usageDir}/c.ts`);
+    expect(result.has('spacingLg')).toBe(false);
+    expect(result.has('colorPrimary')).toBe(true);
   });
 });

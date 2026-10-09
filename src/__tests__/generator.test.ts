@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCode, generateDeclaration, generateJs, findKeyCollisions } from '../generator.js';
+import { generateCode, generateDeclaration, generateJs, findKeyCollisions, computeKey } from '../generator.js';
 
 describe('generateCode', () => {
   it('generates typed constants from var names', () => {
@@ -425,5 +425,23 @@ describe('grouped output (group: true)', () => {
     expect(result).toContain('  };');
     expect(result).toContain("  radius: 'var(--radius)';");
     expect(result).not.toContain('CssVarName');
+  });
+});
+
+describe('computeKey', () => {
+  it('matches the key generateCode would produce for camelCase', () => {
+    expect(computeKey('--color-primary')).toBe('colorPrimary');
+  });
+
+  it('matches the key generateCode would produce with a prefix', () => {
+    expect(computeKey('--color-primary', 'theme')).toBe('themeColorPrimary');
+  });
+
+  it('matches the unquoted kebab key (what a bracket-access usage would contain)', () => {
+    expect(computeKey('--color-primary', undefined, 'kebab')).toBe('color-primary');
+  });
+
+  it('matches the constant-case key', () => {
+    expect(computeKey('--color-primary', undefined, 'constant')).toBe('COLOR_PRIMARY');
   });
 });

@@ -11,6 +11,8 @@ await generate({
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary — see CLI docs
+  prune: false,              // drop vars with no detected cssVars.<key> usage — see CLI docs
+  usage: 'src/**/*.{ts,tsx}',
 });
 ```
 
@@ -31,6 +33,23 @@ if (!upToDate) {
 }
 ```
 
+## findUnusedVars
+
+`findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. This is what `--prune-check` does on the CLI — see [Pruning unused variables](/guide/cli#pruning-unused-variables) for how the usage scan works and its limitations.
+
+```ts
+import { findUnusedVars } from 'css-typed-vars';
+
+const unused = await findUnusedVars({
+  input: 'src/styles/**/*.{css,scss}',
+  usage: 'src/**/*.{ts,tsx}',
+});
+
+if (unused.length > 0) {
+  throw new Error(`Unused CSS variables: ${unused.join(', ')}`);
+}
+```
+
 ## Lower-level exports
 
 ```ts
@@ -39,7 +58,8 @@ import {
   parseVarDeclarations,  // (css: string, selectors?: string[]) => Map<string, string>
   scanVarNames,          // (patterns, exclude?, selectors?) => Promise<string[]>
   scanVarDeclarations,   // (patterns, exclude?, selectors?) => Promise<Map<string, string>>
-  generateCode,          // (varNames, prefix?, naming?, declarations?) => string
+  scanUsedKeys,          // (patterns, exclude?) => Promise<Set<string>>
+  generateCode,          // (varNames, prefix?, naming?, declarations?, group?) => string
   generateJs,
   generateDeclaration,
 } from 'css-typed-vars';
