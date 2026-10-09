@@ -179,3 +179,43 @@ export function parseVarDeclarations(css: string, selectors?: string[]): Map<str
   scanDeclarations(css, selectors, (name, value) => declarations.set(name, value));
   return declarations;
 }
+
+export interface PropertyRule {
+  syntax?: string;
+  inherits?: string;
+  initialValue?: string;
+}
+
+const PROPERTY_DESCRIPTORS = [
+  ['syntax', 'syntax'],
+  ['inherits', 'inherits'],
+  ['initial-value', 'initialValue'],
+] as const;
+
+// Parses `@property --name { syntax: '...'; inherits: ...; initial-value: ...; }`
+// rules, as registered via the CSS Properties and Values API. Last rule for a
+// given name wins, matching parseVarDeclarations' convention.
+export function parsePropertyRules(css: string): Map<string, PropertyRule> {
+  const stripped = stripComments(css);
+  const rules = new Map<string, PropertyRule>();
+  const openRegex = /@property\s+(--[\w-]+)\s*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = openRegex.exec(stripped))) {
+    const name = match[1];
+    const start = match.index + match[0].length;
+    const block = extractBlock(stripped, start);
+    const masked = maskQuotedContent(block);
+    const rule: PropertyRule = {};
+    for (const [descriptor, key] of PROPERTY_DESCRIPTORS) {
+      const descRegex = new RegExp(`(?:^|[;{\\s])${descriptor}(?=\\s*:)`);
+      const descMatch = descRegex.exec(masked);
+      if (!descMatch) continue;
+      const nameEnd = descMatch.index + descMatch[0].length;
+      const colonIndex = block.indexOf(':', nameEnd);
+      rule[key] = extractValue(block, colonIndex + 1);
+    }
+    if (Object.keys(rule).length > 0) rules.set(name, rule);
+    openRegex.lastIndex = start + block.length + 1;
+  }
+  return rules;
+}

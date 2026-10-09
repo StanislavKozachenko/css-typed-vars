@@ -1,11 +1,11 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { scanVarDeclarations, scanUsedKeys } from './scanner.js';
+import { scanCss, scanVarDeclarations, scanUsedKeys } from './scanner.js';
 import { generateCode, generateJs, generateDeclaration, warnOnCollisions, computeKey, type NamingConvention } from './generator.js';
 
-export { parseVarNames, parseVarDeclarations } from './parser.js';
+export { parseVarNames, parseVarDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
 export { generateCode, generateJs, generateDeclaration } from './generator.js';
-export { scanVarNames, scanVarDeclarations, scanUsedKeys } from './scanner.js';
+export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from './scanner.js';
 export type { NamingConvention } from './generator.js';
 
 export interface GenerateOptions {
@@ -68,7 +68,7 @@ interface ComputedOutput {
 
 async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput> {
   assertPruneCompatible(options);
-  const declarations = await scanVarDeclarations(options.input, options.exclude, options.selectors);
+  const { declarations, properties } = await scanCss(options.input, options.exclude, options.selectors);
   let names = [...declarations.keys()].sort();
   if (names.length === 0) {
     console.warn('css-typed-vars: no CSS custom properties found.');
@@ -88,12 +88,12 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
 
   const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);
   if (jsExtMatch) {
-    const content = generateJs(names, options.prefix, options.naming, declarations, options.group);
+    const content = generateJs(names, options.prefix, options.naming, declarations, options.group, properties);
     const dtsPath = outPath.slice(0, -jsExtMatch[0].length) + '.d.ts';
-    const dtsContent = generateDeclaration(names, options.prefix, options.naming, declarations, options.group);
+    const dtsContent = generateDeclaration(names, options.prefix, options.naming, declarations, options.group, properties);
     return { outPath, content, dtsPath, dtsContent };
   }
-  return { outPath, content: generateCode(names, options.prefix, options.naming, declarations, options.group) };
+  return { outPath, content: generateCode(names, options.prefix, options.naming, declarations, options.group, properties) };
 }
 
 export async function generate(options: GenerateOptions): Promise<void> {

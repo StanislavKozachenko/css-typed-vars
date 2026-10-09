@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateCode, generateDeclaration, generateJs, findKeyCollisions, computeKey } from '../generator.js';
+import type { PropertyRule } from '../parser.js';
 
 describe('generateCode', () => {
   it('generates typed constants from var names', () => {
@@ -443,5 +444,78 @@ describe('computeKey', () => {
 
   it('matches the constant-case key', () => {
     expect(computeKey('--color-primary', undefined, 'constant')).toBe('COLOR_PRIMARY');
+  });
+});
+
+describe('@property syntax support', () => {
+  const colorRule: PropertyRule = { syntax: "'<color>'" };
+  const enumRule: PropertyRule = { syntax: '"light | dark | system"' };
+
+  it('emits an @syntax JSDoc comment with quotes stripped (generateCode)', () => {
+    const properties = new Map([['--color-primary', colorRule]]);
+    const result = generateCode(['--color-primary'], undefined, undefined, undefined, undefined, properties);
+    expect(result).toContain("/** @syntax <color> */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('emits an @syntax comment (generateJs)', () => {
+    const properties = new Map([['--color-primary', colorRule]]);
+    const result = generateJs(['--color-primary'], undefined, undefined, undefined, undefined, properties);
+    expect(result).toContain("/** @syntax <color> */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('emits an @syntax comment (generateDeclaration)', () => {
+    const properties = new Map([['--color-primary', colorRule]]);
+    const result = generateDeclaration(['--color-primary'], undefined, undefined, undefined, undefined, properties);
+    expect(result).toContain("/** @syntax <color> */\n  colorPrimary: 'var(--color-primary)';");
+  });
+
+  it('stacks @default above @syntax when both are available', () => {
+    const declarations = new Map([['--color-primary', 'red']]);
+    const properties = new Map([['--color-primary', colorRule]]);
+    const result = generateCode(['--color-primary'], undefined, undefined, declarations, undefined, properties);
+    expect(result).toContain("/** @default red */\n  /** @syntax <color> */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('omits the comment when there is no property rule', () => {
+    const result = generateCode(['--color-primary']);
+    expect(result).not.toContain('@syntax');
+  });
+
+  it('generates a union type for an enum-like custom-ident syntax', () => {
+    const properties = new Map([['--theme-mode', enumRule]]);
+    const result = generateCode(['--theme-mode'], undefined, undefined, undefined, undefined, properties);
+    expect(result).toContain("export type ThemeModeSyntax = 'light' | 'dark' | 'system';");
+  });
+
+  it('generates the union type in generateDeclaration too', () => {
+    const properties = new Map([['--theme-mode', enumRule]]);
+    const result = generateDeclaration(['--theme-mode'], undefined, undefined, undefined, undefined, properties);
+    expect(result).toContain("export type ThemeModeSyntax = 'light' | 'dark' | 'system';");
+  });
+
+  it('does not generate a union type for a generic data-type syntax', () => {
+    const properties = new Map([['--color-primary', colorRule]]);
+    const result = generateCode(['--color-primary'], undefined, undefined, undefined, undefined, properties);
+    expect(result).not.toContain('Syntax =');
+  });
+
+  it('never generates a union type in generateJs (plain JS has no export type)', () => {
+    const properties = new Map([['--theme-mode', enumRule]]);
+    const result = generateJs(['--theme-mode'], undefined, undefined, undefined, undefined, properties);
+    expect(result).not.toContain('export type');
+  });
+
+  it('guards the type name against a digit-leading pascal conversion', () => {
+    const properties = new Map([['--1st-mode', enumRule]]);
+    const result = generateCode(['--1st-mode'], undefined, undefined, undefined, undefined, properties);
+    expect(result).toContain("export type _1stModeSyntax = 'light' | 'dark' | 'system';");
+  });
+
+  it('also emits @syntax comments and union types for grouped output', () => {
+    const properties = new Map([['--color-primary', enumRule]]);
+    const result = generateCode(['--color-primary'], undefined, undefined, undefined, true, properties);
+    expect(result).toContain('color: {');
+    expect(result).toContain("    /** @syntax light | dark | system */\n    primary: 'var(--color-primary)',");
+    expect(result).toContain("export type ColorPrimarySyntax = 'light' | 'dark' | 'system';");
   });
 });

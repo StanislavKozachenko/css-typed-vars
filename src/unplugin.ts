@@ -1,7 +1,7 @@
 import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { scanVarDeclarations, scanUsedKeys } from './scanner.js';
+import { scanCss, scanUsedKeys, type ScannedCss } from './scanner.js';
 import { generateJs, generateDeclaration, warnOnCollisions, computeKey, type NamingConvention } from './generator.js';
 
 export interface Options {
@@ -44,9 +44,9 @@ export default createUnplugin((options: Options) => {
     if (!options.usage) throw new Error('css-typed-vars: "prune" requires "usage" (glob(s) of source files to scan).');
   }
 
-  let cachedDeclarations: Promise<Map<string, string>> | null = null;
+  let cachedScan: Promise<ScannedCss> | null = null;
 
-  const scan = () => scanVarDeclarations(options.input, options.exclude, options.selectors);
+  const scan = () => scanCss(options.input, options.exclude, options.selectors);
 
   // When `prune` is set, drops names with no detected `cssVars.<key>` usage
   // (warning about it). A no-op otherwise.
@@ -81,16 +81,16 @@ export default createUnplugin((options: Options) => {
 
         const rescan = async () => {
           const myGeneration = ++generation;
-          const declarationsPromise = scan();
-          cachedDeclarations = declarationsPromise;
-          const declarations = await declarationsPromise;
+          const scanPromise = scan();
+          cachedScan = scanPromise;
+          const { declarations, properties } = await scanPromise;
           if (myGeneration !== generation) return;
           const names = await resolveNames(declarations);
           if (myGeneration !== generation) return;
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
-            const content = generateDeclaration(names, options.prefix, options.naming, declarations, options.group);
+            const content = generateDeclaration(names, options.prefix, options.naming, declarations, options.group, properties);
             // Writes are serialized (not just generation-gated before starting) so a slower
             // write for an older generation can never complete after a newer one's and clobber it.
             writeQueue = writeQueue.then(async () => {
@@ -124,12 +124,12 @@ export default createUnplugin((options: Options) => {
     },
 
     async buildStart() {
-      cachedDeclarations = scan();
-      const declarations = await cachedDeclarations;
+      cachedScan = scan();
+      const { declarations, properties } = await cachedScan;
       const names = await resolveNames(declarations);
       const dtsPath = getDtsPath(options);
       if (!dtsPath) return;
-      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations, options.group), 'utf8');
+      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations, options.group, properties), 'utf8');
     },
 
     resolveId(id: string) {
@@ -138,9 +138,9 @@ export default createUnplugin((options: Options) => {
 
     async load(id: string) {
       if (id === RESOLVED_ID) {
-        const declarations = await (cachedDeclarations ?? scan());
+        const { declarations, properties } = await (cachedScan ?? scan());
         const names = await applyPrune([...declarations.keys()].sort());
-        return generateJs(names, options.prefix, options.naming, declarations, options.group);
+        return generateJs(names, options.prefix, options.naming, declarations, options.group, properties);
       }
     },
   };

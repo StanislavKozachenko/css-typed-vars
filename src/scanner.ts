@@ -1,19 +1,26 @@
 import { readFile } from 'node:fs/promises';
 import fg from 'fast-glob';
-import { parseVarDeclarations } from './parser.js';
+import { parseVarDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
 }
 
+export interface ScannedCss {
+  declarations: Map<string, string>;
+  properties: Map<string, PropertyRule>;
+}
+
 // Reads are run concurrently for speed, but merged sequentially in fast-glob's
 // (deterministic) file order, so a name declared in multiple files always
-// resolves to the same "last file wins" value regardless of I/O timing.
-export async function scanVarDeclarations(
+// resolves to the same "last file wins" value regardless of I/O timing. Each
+// matched file is read exactly once and parsed for both declarations and
+// @property rules, so callers needing both never double up on file I/O.
+export async function scanCss(
   patterns: string | string[],
   exclude?: string | string[],
   selectors?: string[],
-): Promise<Map<string, string>> {
+): Promise<ScannedCss> {
   const normalized = normalizePatterns(patterns);
   const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
   const files = await fg(normalized, { absolute: true, ignore: normalizedExclude });
@@ -24,18 +31,26 @@ export async function scanVarDeclarations(
         css = await readFile(file, 'utf8');
       } catch (err) {
         console.warn(`css-typed-vars: skipping "${file}": ${(err as Error).message}`);
-        return new Map<string, string>();
+        return { declarations: new Map<string, string>(), properties: new Map<string, PropertyRule>() };
       }
-      return parseVarDeclarations(css, selectors);
+      return { declarations: parseVarDeclarations(css, selectors), properties: parsePropertyRules(css) };
     }),
   );
-  const all = new Map<string, string>();
-  for (const declarations of perFile) {
-    for (const [name, value] of declarations) {
-      all.set(name, value);
-    }
+  const declarations = new Map<string, string>();
+  const properties = new Map<string, PropertyRule>();
+  for (const result of perFile) {
+    for (const [name, value] of result.declarations) declarations.set(name, value);
+    for (const [name, rule] of result.properties) properties.set(name, rule);
   }
-  return all;
+  return { declarations, properties };
+}
+
+export async function scanVarDeclarations(
+  patterns: string | string[],
+  exclude?: string | string[],
+  selectors?: string[],
+): Promise<Map<string, string>> {
+  return (await scanCss(patterns, exclude, selectors)).declarations;
 }
 
 export async function scanVarNames(
