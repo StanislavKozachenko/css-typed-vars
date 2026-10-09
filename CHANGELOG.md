@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.6.0] - 2026-10-09
+
+### Added
+
+- add @property syntax-aware JSDoc and enum union types
+- add unused-variable prune/lint mode (prune, pruneCheck)
+- add namespaced/grouped output via group option
+- scan Tailwind CSS v4 @theme blocks alongside :root
+
+### Changed
+
+- link to the published documentation site
+- deploy docs to GitHub Pages on push to main
+- add VitePress site content
+
+---
+
+
 ## [0.5.0] - 2026-10-08
 
 ### Added
