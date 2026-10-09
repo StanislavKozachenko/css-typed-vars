@@ -145,7 +145,9 @@ function scanDeclarations(
   onProperty: (name: string, value: string) => void,
 ): void {
   const stripped = stripComments(css);
-  const allSelectors = [':root', ...(selectors ?? [])];
+  // '@theme' covers Tailwind CSS v4's design-token block, which declares
+  // custom properties outside :root (e.g. `@theme { --color-primary: ... }`).
+  const allSelectors = [':root', '@theme', ...(selectors ?? [])];
   for (const sel of allSelectors) {
     const escaped = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const openRegex = new RegExp(`${escaped}(?![\\w-])[^{]*\\{`, 'g');

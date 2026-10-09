@@ -100,6 +100,35 @@ describe('parseVarNames', () => {
     expect(result).toContain('--color-text');
   });
 
+  it('picks up variables from a Tailwind v4 @theme block without selectors option', () => {
+    const css = `@theme {
+      --color-primary: #3b82f6;
+      --spacing-md: 8px;
+    }`;
+    expect(parseVarNames(css)).toEqual(['--color-primary', '--spacing-md']);
+  });
+
+  it('supports @theme block modifiers like "inline"', () => {
+    const css = `@theme inline { --color-primary: #3b82f6; }`;
+    expect(parseVarNames(css)).toEqual(['--color-primary']);
+  });
+
+  it('does not match an at-rule whose name merely starts with "theme"', () => {
+    const css = `@themeOverride { --color-primary: #3b82f6; }`;
+    expect(parseVarNames(css)).toEqual([]);
+  });
+
+  it('combines @theme and :root declarations', () => {
+    const css = `
+      @theme { --color-primary: #3b82f6; }
+      :root { --spacing-md: 8px; }
+    `;
+    const result = parseVarNames(css);
+    expect(result).toContain('--color-primary');
+    expect(result).toContain('--spacing-md');
+    expect(result).toHaveLength(2);
+  });
+
   it('keeps properties declared after a nested block inside :root', () => {
     const css = `:root {
       --color: red;
