@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitepress';
+
+const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
 export default defineConfig({
   title: 'css-typed-vars',
@@ -6,14 +9,16 @@ export default defineConfig({
   base: '/css-typed-vars/',
   cleanUrls: true,
   lastUpdated: true,
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/css-typed-vars/logo.svg' }]],
 
   themeConfig: {
+    logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'CLI', link: '/guide/cli' },
       { text: 'Plugin', link: '/guide/plugin' },
       {
-        text: 'v0.5.0',
+        text: `v${version}`,
         items: [
           { text: 'Changelog', link: 'https://github.com/StanislavKozachenko/css-typed-vars/blob/main/CHANGELOG.md' },
           { text: 'npm', link: 'https://www.npmjs.com/package/css-typed-vars' },
