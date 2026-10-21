@@ -143,7 +143,9 @@ This is a textual scan, not a full parser, so it has two limitations worth knowi
 - It won't see through a renamed import (`import { cssVars as vars } from './cssVars'` — usages via `vars.foo` aren't detected).
 - A match inside a comment or string still counts as "used".
 
-When in doubt, run `--prune-check` first to review what it would remove before turning on `--prune` for real. `--prune`/`--prune-check` require `--usage` and can't be combined with `--group`.
+With `--group`, a grouped variable counts as used when it's accessed as `cssVars.<group>.<key>` (dot or bracket access), or when its whole group is referenced as `cssVars.<group>` without further access — e.g. `Object.values(cssVars.color)` keeps every `--color-*` variable.
+
+When in doubt, run `--prune-check` first to review what it would remove before turning on `--prune` for real. `--prune`/`--prune-check` require `--usage`.
 
 ## Using --check in CI
 

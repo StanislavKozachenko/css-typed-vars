@@ -78,6 +78,21 @@ export function computeKey(cssVarName: string, prefix?: string, naming?: NamingC
   return applyPrefix(toKey(cssVarName, naming), prefix, naming);
 }
 
+// The unquoted access path a CSS var name gets in the generated object:
+// `[key]` in flat output, `[groupKey, leafKey]` in grouped output (or `[key]`
+// for a name with no hyphen to group by).
+export function computeKeyPath(
+  cssVarName: string,
+  prefix?: string,
+  naming?: NamingConvention,
+  group?: boolean,
+): string[] {
+  if (!group) return [computeKey(cssVarName, prefix, naming)];
+  const split = splitGroupKey(cssVarName);
+  if (!split) return [toKey(cssVarName, naming)];
+  return [toKeyFragment(split.group, naming), toKeyFragment(split.rest, naming)];
+}
+
 export function findKeyCollisions(
   varNames: string[],
   prefix?: string,
@@ -269,19 +284,53 @@ function assertGroupPrefixCompatible(prefix: string | undefined, group: boolean 
 const codeLineFor = (key: string, name: string) => `${key}: 'var(${name})',`;
 const declarationLineFor = (key: string, name: string) => `${key}: 'var(${name})';`;
 
-export function generateCode(
-  varNames: string[],
+export interface GeneratorOptions {
+  prefix?: string;
+  naming?: NamingConvention;
+  /** Declared value per var name, emitted as a `@default` JSDoc tag. */
+  declarations?: Map<string, string>;
+  group?: boolean;
+  /** `@property` rules per var name, emitted as `@syntax` JSDoc tags and enum union types. */
+  properties?: Map<string, PropertyRule>;
+}
+
+type LegacyArgs = [
   prefix?: string,
   naming?: NamingConvention,
   declarations?: Map<string, string>,
   group?: boolean,
   properties?: Map<string, PropertyRule>,
-): string {
+];
+
+// Accepts both the options object and the legacy positional arguments
+// (`prefix, naming, declarations, group, properties`).
+function normalizeOptions(args: [GeneratorOptions?] | LegacyArgs): GeneratorOptions {
+  const [first] = args;
+  if (first !== null && typeof first === 'object') return first;
+  const [prefix, naming, declarations, group, properties] = args as LegacyArgs;
+  return { prefix, naming, declarations, group, properties };
+}
+
+function renderEntries(
+  varNames: string[],
+  options: GeneratorOptions,
+  closeSuffix: string,
+  lineFor: (key: string, name: string) => string,
+): string[] {
+  const { prefix, naming, declarations, group, properties } = options;
   assertGroupPrefixCompatible(prefix, group);
-  const entries = group
-    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', ',', codeLineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', codeLineFor);
-  const blocks = buildTailBlocks(varNames, group, properties);
+  return group
+    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', closeSuffix, lineFor)
+    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', lineFor);
+}
+
+export function generateCode(varNames: string[], options?: GeneratorOptions): string;
+/** @deprecated Pass a `GeneratorOptions` object as the second argument instead. */
+export function generateCode(varNames: string[], ...args: LegacyArgs): string;
+export function generateCode(varNames: string[], ...args: [GeneratorOptions?] | LegacyArgs): string {
+  const options = normalizeOptions(args);
+  const entries = renderEntries(varNames, options, ',', codeLineFor);
+  const blocks = buildTailBlocks(varNames, options.group, options.properties);
   const tailBody = blocks.flatMap((block, i) => (i === 0 ? block : ['', ...block]));
   return [
     '// generated — do not edit',
@@ -293,18 +342,11 @@ export function generateCode(
   ].join('\n');
 }
 
-export function generateJs(
-  varNames: string[],
-  prefix?: string,
-  naming?: NamingConvention,
-  declarations?: Map<string, string>,
-  group?: boolean,
-  properties?: Map<string, PropertyRule>,
-): string {
-  assertGroupPrefixCompatible(prefix, group);
-  const entries = group
-    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', ',', codeLineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', codeLineFor);
+export function generateJs(varNames: string[], options?: GeneratorOptions): string;
+/** @deprecated Pass a `GeneratorOptions` object as the second argument instead. */
+export function generateJs(varNames: string[], ...args: LegacyArgs): string;
+export function generateJs(varNames: string[], ...args: [GeneratorOptions?] | LegacyArgs): string {
+  const entries = renderEntries(varNames, normalizeOptions(args), ',', codeLineFor);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
@@ -314,19 +356,13 @@ export function generateJs(
   ].join('\n');
 }
 
-export function generateDeclaration(
-  varNames: string[],
-  prefix?: string,
-  naming?: NamingConvention,
-  declarations?: Map<string, string>,
-  group?: boolean,
-  properties?: Map<string, PropertyRule>,
-): string {
-  assertGroupPrefixCompatible(prefix, group);
-  const entries = group
-    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', ';', declarationLineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', declarationLineFor);
-  const blocks = buildTailBlocks(varNames, group, properties);
+export function generateDeclaration(varNames: string[], options?: GeneratorOptions): string;
+/** @deprecated Pass a `GeneratorOptions` object as the second argument instead. */
+export function generateDeclaration(varNames: string[], ...args: LegacyArgs): string;
+export function generateDeclaration(varNames: string[], ...args: [GeneratorOptions?] | LegacyArgs): string {
+  const options = normalizeOptions(args);
+  const entries = renderEntries(varNames, options, ';', declarationLineFor);
+  const blocks = buildTailBlocks(varNames, options.group, options.properties);
   const tailBody = blocks.flatMap((block, i) => (i === 0 ? block : ['', ...block]));
   return [
     'export declare const cssVars: {',

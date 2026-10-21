@@ -134,7 +134,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
-| `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). Can't be combined with `--group`. |
+| `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). With `--group`, matches `cssVars.<group>.<key>` and keeps a whole group referenced as `cssVars.<group>`. |
 | `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Useful in CI. |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
 | `--usage-exclude` | Glob of source files to exclude from the usage scan (repeatable) |
@@ -274,7 +274,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `naming` | `'camelCase' \| 'snake' \| 'kebab' \| 'constant' \| 'pascal'` | `'camelCase'` | Key naming convention |
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary`. Can't be combined with `prefix` |
-| `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` usage. Requires `usage`. Can't be combined with `group` |
+| `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>` with `group`) usage. Requires `usage` |
 | `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
 | `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
@@ -342,7 +342,7 @@ await generate({
 
 `checkGenerated(options)` takes the same options and returns `Promise<boolean>` — `true` if the existing output already matches what would be generated, without writing anything. Same thing `--check` does on the CLI.
 
-`findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. Same thing `--prune-check` does on the CLI.
+`findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`group`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. Same thing `--prune-check` does on the CLI.
 
 Lower-level exports:
 

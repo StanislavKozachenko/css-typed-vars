@@ -35,7 +35,7 @@ if (!upToDate) {
 
 ## findUnusedVars
 
-`findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. This is what `--prune-check` does on the CLI — see [Pruning unused variables](/guide/cli#pruning-unused-variables) for how the usage scan works and its limitations.
+`findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`group`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. This is what `--prune-check` does on the CLI — see [Pruning unused variables](/guide/cli#pruning-unused-variables) for how the usage scan works and its limitations.
 
 ```ts
 import { findUnusedVars } from 'css-typed-vars';
@@ -61,11 +61,20 @@ import {
   scanVarDeclarations,   // (patterns, exclude?, selectors?) => Promise<Map<string, string>>
   scanCss,               // (patterns, exclude?, selectors?) => Promise<{ declarations, properties }>
   scanUsedKeys,          // (patterns, exclude?) => Promise<Set<string>>
-  generateCode,          // (varNames, prefix?, naming?, declarations?, group?, properties?) => string
+  generateCode,          // (varNames, options?: GeneratorOptions) => string
   generateJs,
   generateDeclaration,
 } from 'css-typed-vars';
 ```
+
+`generateCode`/`generateJs`/`generateDeclaration` take an options object as the second argument — `{ prefix?, naming?, declarations?, group?, properties? }` (exported as the `GeneratorOptions` type):
+
+```ts
+const { declarations, properties } = await scanCss('src/**/*.css');
+const code = generateCode([...declarations.keys()].sort(), { naming: 'snake', declarations, properties });
+```
+
+The older positional form `generateCode(varNames, prefix?, naming?, declarations?, group?, properties?)` still works, but is deprecated.
 
 `parseVarDeclarations`/`scanVarDeclarations` return a `Map` from CSS variable name to its declared value — the same data `generate()` uses internally to emit the `@default` JSDoc comments. Useful if you want to build your own tooling on top of the scan.
 
