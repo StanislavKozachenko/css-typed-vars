@@ -100,3 +100,4 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the [CL
 | `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
 | `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
+| `tokens` | `string` | — | Also write a [design tokens (DTCG)](/guide/design-tokens) JSON file to this path |

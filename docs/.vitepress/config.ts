@@ -33,6 +33,7 @@ export default defineConfig({
           { text: 'Getting started', link: '/guide/getting-started' },
           { text: 'Naming conventions', link: '/guide/naming-conventions' },
           { text: 'Supported formats', link: '/guide/supported-formats' },
+          { text: 'Design tokens', link: '/guide/design-tokens' },
         ],
       },
       {

@@ -221,6 +221,25 @@ describe('generate', () => {
     expect(result).toContain("  /** @theme dark 2px */\n  glow: 'var(--glow)',");
   });
 
+  it('writes a DTCG tokens file when output ends with .json', async () => {
+    const input = join(dir, 'tokens.css');
+    const output = join(dir, 'tokens.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(input, '@property --color-primary { syntax: "<color>"; inherits: true; initial-value: red; } :root { --color-primary: #3b82f6; --color-link: var(--color-primary); }');
+
+    await generate({ input, output, group: true });
+
+    expect(JSON.parse(await readFile(output, 'utf8'))).toEqual({
+      color: {
+        link: { $value: '{color.primary}' },
+        primary: { $value: '#3b82f6', $type: 'color' },
+      },
+    });
+    expect(await checkGenerated({ input, output, group: true })).toBe(true);
+    await writeFile(input, ':root { --color-primary: #000; }');
+    expect(await checkGenerated({ input, output, group: true })).toBe(false);
+  });
+
   it('prunes a var with no detected usage and warns about it', async () => {
     const { writeFile, mkdir } = await import('node:fs/promises');
     const input = join(dir, 'prune-test.css');
