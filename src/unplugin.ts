@@ -24,6 +24,8 @@ export interface Options {
   /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true. */
   usage?: string | string[];
   usageExclude?: string | string[];
+  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
+  helpers?: boolean;
 }
 
 const VIRTUAL_ID = 'css-typed-vars/vars';
@@ -64,6 +66,7 @@ export default createUnplugin((options: Options) => {
     declarations,
     group: options.group,
     properties,
+    helpers: options.helpers,
   });
 
   // Sorts the scanned names, warns on key collisions, and applies pruning.

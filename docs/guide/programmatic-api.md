@@ -11,6 +11,7 @@ await generate({
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary — see CLI docs
+  helpers: false,            // also emit getCssVar/setCssVar runtime helpers
   prune: false,              // drop vars with no detected cssVars.<key> usage — see CLI docs
   usage: 'src/**/*.{ts,tsx}',
 });
@@ -67,7 +68,7 @@ import {
 } from 'css-typed-vars';
 ```
 
-`generateCode`/`generateJs`/`generateDeclaration` take an options object as the second argument — `{ prefix?, naming?, declarations?, group?, properties? }` (exported as the `GeneratorOptions` type):
+`generateCode`/`generateJs`/`generateDeclaration` take an options object as the second argument — `{ prefix?, naming?, declarations?, group?, properties?, helpers? }` (exported as the `GeneratorOptions` type):
 
 ```ts
 const { declarations, properties } = await scanCss('src/**/*.css');

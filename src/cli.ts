@@ -26,6 +26,7 @@ const checkMode = args.includes('--check');
 const groupFlag = args.includes('--group');
 const pruneFlag = args.includes('--prune');
 const pruneCheckMode = args.includes('--prune-check');
+const helpersFlag = args.includes('--helpers');
 
 interface Config {
   input?: string | string[];
@@ -38,6 +39,7 @@ interface Config {
   prune?: boolean;
   usage?: string | string[];
   usageExclude?: string | string[];
+  helpers?: boolean;
 }
 
 async function loadConfig(): Promise<Config> {
@@ -76,6 +78,7 @@ interface RunOptions {
   prune?: boolean;
   usage?: string | string[];
   usageExclude?: string | string[];
+  helpers?: boolean;
 }
 
 async function run(options: RunOptions): Promise<void> {
@@ -111,9 +114,10 @@ async function main(): Promise<void> {
   const usage = usageArgs.length > 0 ? usageArgs : config.usage;
   const usageExcludeArgs = getArgs('--usage-exclude');
   const usageExclude = usageExcludeArgs.length > 0 ? usageExcludeArgs : config.usageExclude;
+  const helpers = helpersFlag || config.helpers;
 
   if (!input || !output) {
-    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--prune --usage <glob>] [--prune-check --usage <glob>]');
+    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--helpers] [--prune --usage <glob>] [--prune-check --usage <glob>]');
     console.error('Or add a css-typed-vars.config.js file with input and output fields.');
     process.exit(1);
   }
@@ -148,7 +152,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runOptions: RunOptions = { input, output, exclude, prefix, naming, selectors, group, prune, usage, usageExclude };
+  const runOptions: RunOptions = { input, output, exclude, prefix, naming, selectors, group, prune, usage, usageExclude, helpers };
 
   if (checkMode) {
     const upToDate = await checkGenerated(runOptions);

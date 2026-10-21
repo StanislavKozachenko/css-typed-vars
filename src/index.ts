@@ -22,6 +22,8 @@ export interface GenerateOptions {
   /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true, or when calling `findUnusedVars`. */
   usage?: string | string[];
   usageExclude?: string | string[];
+  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
+  helpers?: boolean;
 }
 
 // Reports CSS variables with no detected `cssVars.<key>` usage in the given
@@ -70,6 +72,7 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
     declarations,
     group: options.group,
     properties,
+    helpers: options.helpers,
   };
 
   const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);
