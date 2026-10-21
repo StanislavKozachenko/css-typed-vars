@@ -10,6 +10,7 @@ await generate({
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  themes: { dark: '[data-theme="dark"]' }, // per-theme values as @theme JSDoc tags — see Supported formats
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary — see CLI docs
   helpers: false,            // also emit getCssVar/setCssVar runtime helpers
   prune: false,              // drop vars with no detected cssVars.<key> usage — see CLI docs
@@ -58,9 +59,10 @@ import {
   parseVarNames,         // (css: string, selectors?: string[]) => string[]
   parseVarDeclarations,  // (css: string, selectors?: string[]) => Map<string, string>
   parsePropertyRules,    // (css: string) => Map<string, PropertyRule>
+  parseThemedDeclarations, // (css, selectors, themes) => { declarations, themes }
   scanVarNames,          // (patterns, exclude?, selectors?) => Promise<string[]>
   scanVarDeclarations,   // (patterns, exclude?, selectors?) => Promise<Map<string, string>>
-  scanCss,               // (patterns, exclude?, selectors?) => Promise<{ declarations, properties }>
+  scanCss,               // (patterns, exclude?, selectors?, themes?) => Promise<{ declarations, properties, themes }>
   scanUsedKeys,          // (patterns, exclude?) => Promise<Set<string>>
   generateCode,          // (varNames, options?: GeneratorOptions) => string
   generateJs,
@@ -68,7 +70,7 @@ import {
 } from 'css-typed-vars';
 ```
 
-`generateCode`/`generateJs`/`generateDeclaration` take an options object as the second argument — `{ prefix?, naming?, declarations?, group?, properties?, helpers? }` (exported as the `GeneratorOptions` type):
+`generateCode`/`generateJs`/`generateDeclaration` take an options object as the second argument — `{ prefix?, naming?, declarations?, group?, properties?, helpers?, themes? }` (exported as the `GeneratorOptions` type):
 
 ```ts
 const { declarations, properties } = await scanCss('src/**/*.css');

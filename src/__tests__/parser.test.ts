@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVarNames, parseVarDeclarations, parsePropertyRules } from '../parser.js';
+import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations } from '../parser.js';
 
 describe('parseVarNames', () => {
   it('extracts custom properties from :root block', () => {
@@ -227,6 +227,58 @@ describe('parseVarDeclarations', () => {
   it('handles a declaration at the end of a block with no trailing semicolon', () => {
     const css = `:root { --color-primary: red }`;
     expect(parseVarDeclarations(css).get('--color-primary')).toBe('red');
+  });
+});
+
+describe('parseThemedDeclarations', () => {
+  const css = `
+    :root { --color-bg: #fff; --color-text: #111; }
+    [data-theme="dark"] { --color-bg: #000; --dark-only: 1px; }
+    :root[data-theme="dim"] { --color-bg: #333; }
+    @media (prefers-color-scheme: dark) {
+      :root { --color-text: #eee; }
+    }
+    @media (min-width: 600px) { :root { --gutter: 24px; } }
+  `;
+
+  it('collects selector theme values separately from the base values', () => {
+    const { declarations, themes } = parseThemedDeclarations(css, undefined, { dark: '[data-theme="dark"]', dim: '[data-theme="dim"]' });
+    expect(declarations.get('--color-bg')).toBe('#fff');
+    expect(themes.get('dark')).toEqual(new Map([['--color-bg', '#000'], ['--dark-only', '1px']]));
+  });
+
+  it('keeps a :root[...] theme block out of the base values', () => {
+    // Without themes, the default :root scan picks up :root[data-theme="dim"] and it wins.
+    expect(parseVarDeclarations(css).get('--color-bg')).toBe('#333');
+    const { declarations, themes } = parseThemedDeclarations(css, undefined, { dim: '[data-theme="dim"]' });
+    expect(declarations.get('--color-bg')).toBe('#fff');
+    expect(themes.get('dim')?.get('--color-bg')).toBe('#333');
+  });
+
+  it('reads :root inside a matching @media theme, ignoring whitespace and case', () => {
+    const { declarations, themes } = parseThemedDeclarations(css, undefined, { dark: '@MEDIA (prefers-color-scheme:dark)' });
+    expect(declarations.get('--color-text')).toBe('#111');
+    expect(themes.get('dark')).toEqual(new Map([['--color-text', '#eee']]));
+  });
+
+  it('leaves non-theme @media blocks in the base values', () => {
+    const { declarations } = parseThemedDeclarations(css, undefined, { dark: '@media (prefers-color-scheme: dark)' });
+    expect(declarations.get('--gutter')).toBe('24px');
+  });
+
+  it('finds a theme @media block nested inside another @media block', () => {
+    const nested = '@media screen { @media (prefers-color-scheme: dark) { :root { --x: 1; } } }';
+    const { themes } = parseThemedDeclarations(nested, undefined, { dark: '@media (prefers-color-scheme: dark)' });
+    expect(themes.get('dark')?.get('--x')).toBe('1');
+  });
+
+  it('returns an empty map for a theme with no matching blocks', () => {
+    const { themes } = parseThemedDeclarations(css, undefined, { sepia: '.sepia' });
+    expect(themes.get('sepia')?.size).toBe(0);
+  });
+
+  it('matches parseVarDeclarations when no themes are given', () => {
+    expect(parseThemedDeclarations(css, ['.x'], {}).declarations).toEqual(parseVarDeclarations(css, ['.x']));
   });
 });
 

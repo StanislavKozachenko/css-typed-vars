@@ -208,6 +208,19 @@ describe('generate', () => {
     warn.mockRestore();
   });
 
+  it('emits theme values and keeps theme-only vars', async () => {
+    const input = join(dir, 'themes.css');
+    const output = join(dir, 'themeVars.ts');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(input, ':root { --color-bg: #fff; } [data-theme="dark"] { --color-bg: #000; --glow: 2px; }');
+
+    await generate({ input, output, themes: { dark: '[data-theme="dark"]' } });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("  /** @default #fff */\n  /** @theme dark #000 */\n  colorBg: 'var(--color-bg)',");
+    expect(result).toContain("  /** @theme dark 2px */\n  glow: 'var(--glow)',");
+  });
+
   it('prunes a var with no detected usage and warns about it', async () => {
     const { writeFile, mkdir } = await import('node:fs/promises');
     const input = join(dir, 'prune-test.css');

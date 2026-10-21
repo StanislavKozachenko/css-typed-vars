@@ -1,10 +1,10 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { scanCss, scanVarDeclarations, scanUsage } from './scanner.js';
+import { scanCss, scanUsage, collectVarNames } from './scanner.js';
 import { generateCode, generateJs, generateDeclaration, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
-export { parseVarNames, parseVarDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
+export { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, type PropertyRule, type ThemedDeclarations } from './parser.js';
 export { generateCode, generateJs, generateDeclaration } from './generator.js';
 export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from './scanner.js';
 export type { NamingConvention, GeneratorOptions } from './generator.js';
@@ -16,6 +16,12 @@ export interface GenerateOptions {
   prefix?: string;
   naming?: NamingConvention;
   selectors?: string[];
+  /**
+   * Theme name -> selector (`'[data-theme="dark"]'`) or `@media` prelude
+   * (`'@media (prefers-color-scheme: dark)'`). Each theme's values are emitted as
+   * `@theme <name> <value>` JSDoc tags, and kept out of the default value.
+   */
+  themes?: Record<string, string>;
   group?: boolean;
   /** Prune generated vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>`) usage. Requires `usage`. */
   prune?: boolean;
@@ -29,14 +35,14 @@ export interface GenerateOptions {
 // Reports CSS variables with no detected `cssVars.<key>` usage in the given
 // source files, without writing or pruning anything. Backs `--prune-check`.
 export async function findUnusedVars(
-  options: Pick<GenerateOptions, 'input' | 'exclude' | 'selectors' | 'prefix' | 'naming' | 'group' | 'usage' | 'usageExclude'>,
+  options: Pick<GenerateOptions, 'input' | 'exclude' | 'selectors' | 'themes' | 'prefix' | 'naming' | 'group' | 'usage' | 'usageExclude'>,
 ): Promise<string[]> {
   if (!options.usage) throw new Error('css-typed-vars: findUnusedVars requires "usage" (glob(s) of source files to scan).');
-  const [declarations, usage] = await Promise.all([
-    scanVarDeclarations(options.input, options.exclude, options.selectors),
+  const [scanned, usage] = await Promise.all([
+    scanCss(options.input, options.exclude, options.selectors, options.themes),
     scanUsage(options.usage, options.usageExclude),
   ]);
-  const names = [...declarations.keys()].sort();
+  const names = collectVarNames(scanned);
   return partitionUnused(names, usage, options).unused;
 }
 
@@ -49,8 +55,9 @@ interface ComputedOutput {
 
 async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput> {
   assertPruneCompatible(options);
-  const { declarations, properties } = await scanCss(options.input, options.exclude, options.selectors);
-  let names = [...declarations.keys()].sort();
+  const scanned = await scanCss(options.input, options.exclude, options.selectors, options.themes);
+  const { declarations, properties } = scanned;
+  let names = collectVarNames(scanned);
   if (names.length === 0) {
     console.warn('css-typed-vars: no CSS custom properties found.');
   }
@@ -73,6 +80,7 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
     group: options.group,
     properties,
     helpers: options.helpers,
+    themes: scanned.themes,
   };
 
   const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);

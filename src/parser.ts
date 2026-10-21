@@ -136,34 +136,60 @@ function extractValue(text: string, start: number): string {
   return text.slice(start, i).trim();
 }
 
-// Walks every `:root`/custom-selector block in css, calling onProperty for
-// each custom-property declaration found. Shared by parseVarNames (which
-// only needs the name) and parseVarDeclarations (which also needs the value).
-function scanDeclarations(
-  css: string,
-  selectors: string[] | undefined,
-  onProperty: (name: string, value: string) => void,
+type Range = [start: number, end: number];
+
+function forEachProperty(block: string, onProperty: (name: string, value: string) => void): void {
+  const masked = maskQuotedContent(block);
+  for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
+    const name = prop[0];
+    const colonIndex = block.indexOf(':', prop.index + name.length);
+    onProperty(name, extractValue(block, colonIndex + 1));
+  }
+}
+
+// Walks every block opened by one of `selectors` in already comment-stripped
+// css, calling onBlock with the block's body and its [start, end) range
+// (from just after the opening brace to just after the closing one).
+function forEachSelectorBlock(
+  stripped: string,
+  selectors: string[],
+  onBlock: (block: string, range: Range) => void,
 ): void {
-  const stripped = stripComments(css);
-  // '@theme' covers Tailwind CSS v4's design-token block, which declares
-  // custom properties outside :root (e.g. `@theme { --color-primary: ... }`).
-  const allSelectors = [':root', '@theme', ...(selectors ?? [])];
-  for (const sel of allSelectors) {
+  for (const sel of selectors) {
     const escaped = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const openRegex = new RegExp(`${escaped}(?![\\w-])[^{]*\\{`, 'g');
     let match: RegExpExecArray | null;
     while ((match = openRegex.exec(stripped))) {
       const start = match.index + match[0].length;
       const block = extractBlock(stripped, start);
-      const masked = maskQuotedContent(block);
-      for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
-        const name = prop[0];
-        const colonIndex = block.indexOf(':', prop.index + name.length);
-        onProperty(name, extractValue(block, colonIndex + 1));
-      }
-      openRegex.lastIndex = start + block.length + 1;
+      const end = start + block.length + 1;
+      onBlock(block, [start, end]);
+      openRegex.lastIndex = end;
     }
   }
+}
+
+// '@theme' covers Tailwind CSS v4's design-token block, which declares
+// custom properties outside :root (e.g. `@theme { --color-primary: ... }`).
+const BASE_SELECTORS = [':root', '@theme'];
+
+// Walks every `:root`/custom-selector block in css, calling onProperty for
+// each custom-property declaration found. Shared by parseVarNames (which
+// only needs the name) and parseVarDeclarations (which also needs the value).
+// Blocks whose body starts inside one of `skip` (theme blocks) are left out —
+// comparing body positions, a theme match like `[data-theme="dark"]` and the
+// base `:root` match on `:root[data-theme="dark"] {` resolve to the same block.
+function scanDeclarations(
+  css: string,
+  selectors: string[] | undefined,
+  onProperty: (name: string, value: string) => void,
+  skip: Range[] = [],
+  stripped = stripComments(css),
+): void {
+  forEachSelectorBlock(stripped, [...BASE_SELECTORS, ...(selectors ?? [])], (block, [bodyStart]) => {
+    if (skip.some(([s, e]) => bodyStart >= s && bodyStart < e)) return;
+    forEachProperty(block, onProperty);
+  });
 }
 
 export function parseVarNames(css: string, selectors?: string[]): string[] {
@@ -178,6 +204,70 @@ export function parseVarDeclarations(css: string, selectors?: string[]): Map<str
   const declarations = new Map<string, string>();
   scanDeclarations(css, selectors, (name, value) => declarations.set(name, value));
   return declarations;
+}
+
+const normalizePrelude = (prelude: string) => prelude.replace(/\s+/g, '').toLowerCase();
+
+// Walks every `@media <prelude> { ... }` block whose prelude matches `media`
+// (ignoring whitespace and case), calling onBlock with its body and range.
+function forEachMediaBlock(stripped: string, media: string, onBlock: (block: string, range: Range) => void): void {
+  const wanted = normalizePrelude(media.replace(/^@media/i, ''));
+  const openRegex = /@media([^{;]*)\{/gi;
+  let match: RegExpExecArray | null;
+  while ((match = openRegex.exec(stripped))) {
+    const start = match.index + match[0].length;
+    const block = extractBlock(stripped, start);
+    const end = start + block.length + 1;
+    if (normalizePrelude(match[1]) === wanted) {
+      onBlock(block, [start, end]);
+      openRegex.lastIndex = end;
+    } else {
+      // Not this theme's media block: keep searching inside it.
+      openRegex.lastIndex = start;
+    }
+  }
+}
+
+export interface ThemedDeclarations {
+  /** Base values, from `:root`/`@theme`/`selectors` blocks outside any theme block. */
+  declarations: Map<string, string>;
+  /** Per theme name, the values declared inside that theme's blocks. */
+  themes: Map<string, Map<string, string>>;
+}
+
+// Like parseVarDeclarations, but also collects values per theme. A theme is a
+// selector (`[data-theme="dark"]`, `.dark`) or an `@media` prelude
+// (`@media (prefers-color-scheme: dark)`, whose `:root`/`@theme` blocks are
+// read). Theme blocks are excluded from the base values, so a theme can't
+// overwrite the default value. Last declaration wins, per theme.
+export function parseThemedDeclarations(
+  css: string,
+  selectors: string[] | undefined,
+  themes: Record<string, string>,
+): ThemedDeclarations {
+  const stripped = stripComments(css);
+  const themeValues = new Map<string, Map<string, string>>();
+  const skip: Range[] = [];
+  for (const [themeName, themeSelector] of Object.entries(themes)) {
+    const values = new Map<string, string>();
+    themeValues.set(themeName, values);
+    const collect = (block: string) => forEachProperty(block, (name, value) => values.set(name, value));
+    const selector = themeSelector.trim();
+    if (/^@media\b/i.test(selector)) {
+      forEachMediaBlock(stripped, selector, (mediaBlock, range) => {
+        skip.push(range);
+        forEachSelectorBlock(mediaBlock, BASE_SELECTORS, collect);
+      });
+    } else {
+      forEachSelectorBlock(stripped, [selector], (block, range) => {
+        skip.push(range);
+        collect(block);
+      });
+    }
+  }
+  const declarations = new Map<string, string>();
+  scanDeclarations(css, selectors, (name, value) => declarations.set(name, value), skip, stripped);
+  return { declarations, themes: themeValues };
 }
 
 export interface PropertyRule {

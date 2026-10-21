@@ -133,6 +133,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
+| `--theme` | Named theme block, kept out of the default value and emitted as `@theme <name> <value>` JSDoc tags (repeatable: `--theme dark='[data-theme="dark"]' --theme contrast='@media (prefers-contrast: more)'`) — see [Theme values](#theme-values) |
 | `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
 | `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)` runtime helpers — see [Usage](#usage). |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). With `--group`, matches `cssVars.<group>.<key>` and keeps a whole group referenced as `cssVars.<group>`. |
@@ -173,6 +174,7 @@ export default {
   prefix: 'theme',
   naming: 'snake', // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  themes: { dark: '[data-theme="dark"]' },
   group: false,
   helpers: false,
   prune: false,
@@ -275,6 +277,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `prefix` | `string` | — | Prefix for generated keys: `'theme'` → `themeColorPrimary` |
 | `naming` | `'camelCase' \| 'snake' \| 'kebab' \| 'constant' \| 'pascal'` | `'camelCase'` | Key naming convention |
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
+| `themes` | `Record<string, string>` | — | Theme name → selector or `@media` prelude; values become `@theme` JSDoc tags — see [Theme values](#theme-values) |
 | `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary`. Can't be combined with `prefix` |
 | `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers from `css-typed-vars/vars` |
 | `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>` with `group`) usage. Requires `usage` |
@@ -349,6 +352,7 @@ await generate({
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  themes: { dark: '[data-theme="dark"]' }, // per-theme values as @theme JSDoc tags
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary
   helpers: false,            // also emit getCssVar/setCssVar runtime helpers
   prune: false,              // drop vars with no detected cssVars.<key> usage (requires `usage`)
@@ -363,7 +367,7 @@ await generate({
 Lower-level exports:
 
 ```ts
-import { parseVarNames, parseVarDeclarations, parsePropertyRules, generateCode, scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from 'css-typed-vars';
+import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, generateCode, scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from 'css-typed-vars';
 ```
 
 ## Supported formats
@@ -375,6 +379,44 @@ import { parseVarNames, parseVarDeclarations, parsePropertyRules, generateCode, 
 | Less | `.less` |
 
 By default, variables are scanned from `:root {}` blocks (including attribute selectors like `:root[data-theme="dark"]`) and Tailwind CSS v4's `@theme {}` blocks. Use the `selectors` option to also pick up variables from other selectors such as `.dark` or `[data-theme="dark"]`.
+
+## Theme values
+
+By default, a variable redeclared in another block (`:root[data-theme="dark"]`, or a `selectors` entry) simply overwrites its `@default` value — last one wins. The `themes` option names those blocks instead, so each theme's value is kept separately:
+
+```js
+// css-typed-vars.config.js
+export default {
+  input: 'src/**/*.css',
+  output: 'src/cssVars.ts',
+  themes: {
+    dark: '[data-theme="dark"]',                     // a selector...
+    contrast: '@media (prefers-contrast: more)',     // ...or an @media prelude (its :root/@theme blocks are read)
+  },
+};
+```
+
+```css
+:root { --color-bg: #ffffff; }
+[data-theme="dark"] { --color-bg: #0b0b0f; --glow: 0 0 8px #7c3aed; }
+@media (prefers-contrast: more) { :root { --color-bg: #000000; } }
+```
+
+```ts
+export const cssVars = {
+  /** @default #ffffff */
+  /** @theme dark #0b0b0f */
+  /** @theme contrast #000000 */
+  colorBg: 'var(--color-bg)',
+  /** @theme dark 0 0 8px #7c3aed */
+  glow: 'var(--glow)',
+} as const;
+```
+
+- Theme blocks are kept out of the default value, so `@default` always shows the base (`:root`/`@theme`/`selectors`) value.
+- A variable declared only inside a theme (`--glow` above) is still generated, with just its theme tags.
+- An `@media` theme matches by its prelude, ignoring whitespace and case. Other `@media` blocks are read as before.
+- On the CLI, pass `--theme <name>=<selector>` (repeatable): `--theme dark='[data-theme="dark"]'`.
 
 ## @property syntax typing
 

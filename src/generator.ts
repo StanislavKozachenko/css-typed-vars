@@ -117,37 +117,45 @@ export function warnOnCollisions(varNames: string[], prefix?: string, naming?: N
   }
 }
 
-type Entry = { key: string; name: string; value?: string; syntax?: string };
+type EntryMeta = { name: string; value?: string; syntax?: string; themes?: Array<[theme: string, value: string]> };
+type Entry = EntryMeta & { key: string };
 
-function buildEntries(
-  varNames: string[],
-  prefix: string | undefined,
-  naming: NamingConvention | undefined,
-  declarations: Map<string, string> | undefined,
-  properties: Map<string, PropertyRule> | undefined,
-): Entry[] {
-  const byKey = new Map<string, { name: string; value?: string; syntax?: string }>();
+function entryMeta(name: string, options: GeneratorOptions): EntryMeta {
+  const themes: Array<[string, string]> = [];
+  for (const [theme, values] of options.themes ?? []) {
+    const value = values.get(name);
+    if (value !== undefined) themes.push([theme, value]);
+  }
+  return {
+    name,
+    value: options.declarations?.get(name),
+    syntax: options.properties?.get(name)?.syntax,
+    ...(themes.length > 0 ? { themes } : {}),
+  };
+}
+
+function buildEntries(varNames: string[], options: GeneratorOptions): Entry[] {
+  const { prefix, naming } = options;
+  const byKey = new Map<string, EntryMeta>();
   for (const name of varNames) {
     const key = formatKey(applyPrefix(toKey(name, naming), prefix, naming), naming);
-    byKey.set(key, { name, value: declarations?.get(name), syntax: properties?.get(name)?.syntax });
+    byKey.set(key, entryMeta(name, options));
   }
   return [...byKey].map(([key, entry]) => ({ key, ...entry }));
 }
 
 function buildGroupedEntries(
   varNames: string[],
-  naming: NamingConvention | undefined,
-  declarations: Map<string, string> | undefined,
-  properties: Map<string, PropertyRule> | undefined,
+  options: GeneratorOptions,
 ): { groups: Array<{ key: string; entries: Entry[] }>; ungrouped: Entry[] } {
-  const groupMap = new Map<string, Map<string, { name: string; value?: string; syntax?: string }>>();
-  const ungroupedMap = new Map<string, { name: string; value?: string; syntax?: string }>();
+  const { naming } = options;
+  const groupMap = new Map<string, Map<string, EntryMeta>>();
+  const ungroupedMap = new Map<string, EntryMeta>();
   for (const name of varNames) {
-    const value = declarations?.get(name);
-    const syntax = properties?.get(name)?.syntax;
+    const meta = entryMeta(name, options);
     const split = splitGroupKey(name);
     if (!split) {
-      ungroupedMap.set(formatKey(toKey(name, naming), naming), { name, value, syntax });
+      ungroupedMap.set(formatKey(toKey(name, naming), naming), meta);
       continue;
     }
     const groupKey = formatKey(toKeyFragment(split.group, naming), naming);
@@ -157,7 +165,7 @@ function buildGroupedEntries(
       leafMap = new Map();
       groupMap.set(groupKey, leafMap);
     }
-    leafMap.set(leafKey, { name, value, syntax });
+    leafMap.set(leafKey, meta);
   }
   // A standalone variable (e.g. `--color`) whose key collides with a group's
   // key (e.g. from `--color-primary`) can't coexist with that group as a
@@ -189,6 +197,10 @@ function unquoteCssString(value: string): string {
 
 function formatSyntaxComment(syntax: string, indent = '  '): string {
   return `${indent}/** @syntax ${unquoteCssString(syntax).replace(/\*\//g, '*\\/')} */`;
+}
+
+function formatThemeComment(theme: string, value: string, indent = '  '): string {
+  return `${indent}/** @theme ${theme} ${value.replace(/\*\//g, '*\\/')} */`;
 }
 
 // Matches a `syntax` descriptor that's a pipe-separated list of custom idents,
@@ -248,8 +260,9 @@ function renderEntryLines(
   indent: string,
   lineFor: (key: string, name: string) => string,
 ): string[] {
-  return entries.flatMap(({ key, name, value, syntax }) => [
+  return entries.flatMap(({ key, name, value, syntax, themes }) => [
     ...(value ? [formatDefaultComment(value, indent)] : []),
+    ...(themes ?? []).map(([theme, themeValue]) => formatThemeComment(theme, themeValue, indent)),
     ...(syntax ? [formatSyntaxComment(syntax, indent)] : []),
     `${indent}${lineFor(key, name)}`,
   ]);
@@ -257,14 +270,12 @@ function renderEntryLines(
 
 function renderGroupedBlock(
   varNames: string[],
-  naming: NamingConvention | undefined,
-  declarations: Map<string, string> | undefined,
-  properties: Map<string, PropertyRule> | undefined,
+  options: GeneratorOptions,
   indent: string,
   closeSuffix: string,
   lineFor: (key: string, name: string) => string,
 ): string[] {
-  const { groups, ungrouped } = buildGroupedEntries(varNames, naming, declarations, properties);
+  const { groups, ungrouped } = buildGroupedEntries(varNames, options);
   const lines: string[] = [];
   for (const group of groups) {
     lines.push(`${indent}${group.key}: {`);
@@ -294,6 +305,8 @@ export interface GeneratorOptions {
   properties?: Map<string, PropertyRule>;
   /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
   helpers?: boolean;
+  /** Per theme name, the values declared for it, emitted as `@theme <name> <value>` JSDoc tags. */
+  themes?: Map<string, Map<string, string>>;
 }
 
 type LegacyArgs = [
@@ -319,19 +332,17 @@ function renderEntries(
   closeSuffix: string,
   lineFor: (key: string, name: string) => string,
 ): string[] {
-  const { prefix, naming, declarations, group, properties } = options;
-  assertGroupPrefixCompatible(prefix, group);
-  return group
-    ? renderGroupedBlock(varNames, naming, declarations, properties, '  ', closeSuffix, lineFor)
-    : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', lineFor);
+  assertGroupPrefixCompatible(options.prefix, options.group);
+  return options.group
+    ? renderGroupedBlock(varNames, options, '  ', closeSuffix, lineFor)
+    : renderEntryLines(buildEntries(varNames, options), '  ', lineFor);
 }
 
 // The var names that actually end up in the generated object, in output
 // order — key collisions and group/standalone conflicts drop some.
 function emittedNames(varNames: string[], options: GeneratorOptions): string[] {
-  const { prefix, naming, group } = options;
-  if (!group) return buildEntries(varNames, prefix, naming, undefined, undefined).map((e) => e.name);
-  const { groups, ungrouped } = buildGroupedEntries(varNames, naming, undefined, undefined);
+  if (!options.group) return buildEntries(varNames, options).map((e) => e.name);
+  const { groups, ungrouped } = buildGroupedEntries(varNames, options);
   return [...groups.flatMap((g) => g.entries), ...ungrouped].map((e) => e.name);
 }
 
