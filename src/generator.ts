@@ -292,6 +292,8 @@ export interface GeneratorOptions {
   group?: boolean;
   /** `@property` rules per var name, emitted as `@syntax` JSDoc tags and enum union types. */
   properties?: Map<string, PropertyRule>;
+  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
+  helpers?: boolean;
 }
 
 type LegacyArgs = [
@@ -324,6 +326,48 @@ function renderEntries(
     : renderEntryLines(buildEntries(varNames, prefix, naming, declarations, properties), '  ', lineFor);
 }
 
+// The var names that actually end up in the generated object, in output
+// order — key collisions and group/standalone conflicts drop some.
+function emittedNames(varNames: string[], options: GeneratorOptions): string[] {
+  const { prefix, naming, group } = options;
+  if (!group) return buildEntries(varNames, prefix, naming, undefined, undefined).map((e) => e.name);
+  const { groups, ungrouped } = buildGroupedEntries(varNames, naming, undefined, undefined);
+  return [...groups.flatMap((g) => g.entries), ...ungrouped].map((e) => e.name);
+}
+
+// `CssVarRef` is the union of every generated `'var(--name)'` value, so the
+// helpers accept `cssVars.<key>` directly regardless of naming/prefix/group.
+function renderRefType(varNames: string[], options: GeneratorOptions): string {
+  const refs = emittedNames(varNames, options).map((name) => `'var(${name})'`);
+  return `export type CssVarRef = ${refs.length > 0 ? refs.join(' | ') : 'never'};`;
+}
+
+// `ref.slice(4, -1)` turns `var(--name)` back into `--name`.
+const HELPERS_TS = [
+  'export function getCssVar(ref: CssVarRef, el: Element = document.documentElement): string {',
+  '  return getComputedStyle(el).getPropertyValue(ref.slice(4, -1)).trim();',
+  '}',
+  '',
+  'export function setCssVar(ref: CssVarRef, value: string, el: HTMLElement = document.documentElement): void {',
+  '  el.style.setProperty(ref.slice(4, -1), value);',
+  '}',
+];
+
+const HELPERS_JS = [
+  'export function getCssVar(ref, el = document.documentElement) {',
+  '  return getComputedStyle(el).getPropertyValue(ref.slice(4, -1)).trim();',
+  '}',
+  '',
+  'export function setCssVar(ref, value, el = document.documentElement) {',
+  '  el.style.setProperty(ref.slice(4, -1), value);',
+  '}',
+];
+
+const HELPERS_DTS = [
+  'export declare function getCssVar(ref: CssVarRef, el?: Element): string;',
+  'export declare function setCssVar(ref: CssVarRef, value: string, el?: HTMLElement): void;',
+];
+
 export function generateCode(varNames: string[], options?: GeneratorOptions): string;
 /** @deprecated Pass a `GeneratorOptions` object as the second argument instead. */
 export function generateCode(varNames: string[], ...args: LegacyArgs): string;
@@ -331,6 +375,7 @@ export function generateCode(varNames: string[], ...args: [GeneratorOptions?] | 
   const options = normalizeOptions(args);
   const entries = renderEntries(varNames, options, ',', codeLineFor);
   const blocks = buildTailBlocks(varNames, options.group, options.properties);
+  if (options.helpers) blocks.push([renderRefType(varNames, options)], HELPERS_TS);
   const tailBody = blocks.flatMap((block, i) => (i === 0 ? block : ['', ...block]));
   return [
     '// generated — do not edit',
@@ -346,12 +391,14 @@ export function generateJs(varNames: string[], options?: GeneratorOptions): stri
 /** @deprecated Pass a `GeneratorOptions` object as the second argument instead. */
 export function generateJs(varNames: string[], ...args: LegacyArgs): string;
 export function generateJs(varNames: string[], ...args: [GeneratorOptions?] | LegacyArgs): string {
-  const entries = renderEntries(varNames, normalizeOptions(args), ',', codeLineFor);
+  const options = normalizeOptions(args);
+  const entries = renderEntries(varNames, options, ',', codeLineFor);
   return [
     '// generated — do not edit',
     'export const cssVars = {',
     ...entries,
     '};',
+    ...(options.helpers ? ['', ...HELPERS_JS] : []),
     '',
   ].join('\n');
 }
@@ -363,6 +410,7 @@ export function generateDeclaration(varNames: string[], ...args: [GeneratorOptio
   const options = normalizeOptions(args);
   const entries = renderEntries(varNames, options, ';', declarationLineFor);
   const blocks = buildTailBlocks(varNames, options.group, options.properties);
+  if (options.helpers) blocks.push([renderRefType(varNames, options)], HELPERS_DTS);
   const tailBody = blocks.flatMap((block, i) => (i === 0 ? block : ['', ...block]));
   return [
     'export declare const cssVars: {',

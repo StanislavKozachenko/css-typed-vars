@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { generateCode, generateDeclaration, generateJs, findKeyCollisions, computeKey, computeKeyPath } from '../generator.js';
 import type { PropertyRule } from '../parser.js';
 
@@ -470,6 +470,67 @@ describe('options object', () => {
     expect(generateCode(names, {})).toBe(generateCode(names));
   });
 });
+
+describe('runtime helpers (helpers: true)', () => {
+  const names = ['--color-primary', '--spacing-md'];
+
+  it('is off by default', () => {
+    expect(generateCode(names)).not.toContain('getCssVar');
+    expect(generateJs(names)).not.toContain('getCssVar');
+    expect(generateDeclaration(names)).not.toContain('getCssVar');
+  });
+
+  it('emits CssVarRef and typed helpers in TS output', () => {
+    const result = generateCode(names, { helpers: true });
+    expect(result).toContain("export type CssVarRef = 'var(--color-primary)' | 'var(--spacing-md)';");
+    expect(result).toContain('export function getCssVar(ref: CssVarRef, el: Element = document.documentElement): string {');
+    expect(result).toContain('export function setCssVar(ref: CssVarRef, value: string, el: HTMLElement = document.documentElement): void {');
+    expect(result).toContain('export type CssVarName = keyof typeof cssVars;');
+  });
+
+  it('emits untyped helpers in JS output and declarations in .d.ts output', () => {
+    expect(generateJs(names, { helpers: true })).toContain('export function getCssVar(ref, el = document.documentElement) {');
+    const dts = generateDeclaration(names, { helpers: true });
+    expect(dts).toContain("export type CssVarRef = 'var(--color-primary)' | 'var(--spacing-md)';");
+    expect(dts).toContain('export declare function getCssVar(ref: CssVarRef, el?: Element): string;');
+    expect(dts).toContain('export declare function setCssVar(ref: CssVarRef, value: string, el?: HTMLElement): void;');
+  });
+
+  it('keeps CssVarRef independent of naming and prefix', () => {
+    const result = generateCode(names, { helpers: true, naming: 'constant', prefix: 'ds' });
+    expect(result).toContain("export type CssVarRef = 'var(--color-primary)' | 'var(--spacing-md)';");
+  });
+
+  it('covers grouped leaves and omits a standalone var dropped by a group', () => {
+    const result = generateCode(['--color', '--color-primary', '--gap'], { helpers: true, group: true });
+    expect(result).toContain("export type CssVarRef = 'var(--color-primary)' | 'var(--gap)';");
+    expect(result).not.toContain('CssVarName');
+  });
+
+  it('keeps only the last var of a key collision', () => {
+    const result = generateCode(['--color-primary', '--color--primary'], { helpers: true });
+    expect(result).toContain("export type CssVarRef = 'var(--color--primary)';");
+  });
+
+  it('falls back to never when there are no vars', () => {
+    expect(generateCode([], { helpers: true })).toContain('export type CssVarRef = never;');
+  });
+
+  it('reads and writes the underlying custom property at runtime', () => {
+    const js = generateJs(['--color-primary'], { helpers: true });
+    const setProperty = vi.fn();
+    const getPropertyValue = vi.fn(() => ' red ');
+    const el = { style: { setProperty } };
+    const run = new Function('getComputedStyle', 'document',
+      js.replace(/^export /gm, '') + '\nreturn { getCssVar, setCssVar, cssVars };');
+    const { getCssVar, setCssVar, cssVars } = run(() => ({ getPropertyValue }), { documentElement: el });
+    expect(getCssVar(cssVars.colorPrimary)).toBe('red');
+    expect(getPropertyValue).toHaveBeenCalledWith('--color-primary');
+    setCssVar(cssVars.colorPrimary, 'blue');
+    expect(setProperty).toHaveBeenCalledWith('--color-primary', 'blue');
+  });
+});
+
 
 describe('computeKeyPath', () => {
   it('returns the flat key when group is off', () => {
