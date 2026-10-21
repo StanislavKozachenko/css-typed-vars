@@ -431,3 +431,60 @@ export function generateDeclaration(varNames: string[], ...args: [GeneratorOptio
     '',
   ].join('\n');
 }
+
+// `@property` syntax -> DTCG `$type`, for the syntaxes with a direct counterpart.
+const TOKEN_TYPES: Record<string, string> = {
+  '<color>': 'color',
+  '<length>': 'dimension',
+  '<length-percentage>': 'dimension',
+  '<number>': 'number',
+  '<integer>': 'number',
+  '<time>': 'duration',
+};
+
+const VAR_REF_RE = /^var\(\s*(--[\w-]+)\s*\)$/;
+
+interface DesignToken {
+  $value: string;
+  $type?: string;
+  $extensions?: { 'css-typed-vars': { themes: Record<string, string> } };
+}
+
+// Emits a W3C Design Tokens (DTCG) JSON document. Token keys follow the same
+// naming/prefix/group rules as the generated object. A var's `$value` is its
+// declared value, falling back to its `@property` initial-value; a var with
+// neither (declared only inside a theme) has no default and is left out.
+export function generateTokens(varNames: string[], options: GeneratorOptions = {}): string {
+  assertGroupPrefixCompatible(options.prefix, options.group);
+  const tokens = emittedNames(varNames, options).flatMap((name) => {
+    const meta = entryMeta(name, options);
+    const value = meta.value ?? options.properties?.get(name)?.initialValue;
+    return value === undefined ? [] : [{ meta, value, path: computeKeyPath(name, options.prefix, options.naming, options.group) }];
+  });
+  const paths = new Map(tokens.map(({ meta, path }) => [meta.name, path]));
+  // A value that's exactly `var(--other)` becomes a DTCG alias (`{path.to.other}`)
+  // when --other is itself a token in this document.
+  const resolve = (value: string): string => {
+    const target = paths.get(VAR_REF_RE.exec(value.trim())?.[1] ?? '');
+    return target ? `{${target.join('.')}}` : value;
+  };
+
+  const root: Record<string, DesignToken | Record<string, DesignToken>> = {};
+  for (const { meta, value, path } of tokens) {
+    const token: DesignToken = { $value: resolve(value) };
+    const type = meta.syntax && TOKEN_TYPES[unquoteCssString(meta.syntax).trim()];
+    if (type) token.$type = type;
+    if (meta.themes) {
+      const themes = Object.fromEntries(meta.themes.map(([theme, themeValue]) => [theme, resolve(themeValue)]));
+      token.$extensions = { 'css-typed-vars': { themes } };
+    }
+    const [key, leaf] = path;
+    if (leaf === undefined) {
+      root[key] = token;
+    } else {
+      const group = (root[key] ??= {}) as Record<string, DesignToken>;
+      group[leaf] = token;
+    }
+  }
+  return JSON.stringify(root, null, 2) + '\n';
+}

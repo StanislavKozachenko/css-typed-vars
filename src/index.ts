@@ -1,16 +1,17 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { scanCss, scanUsage, collectVarNames } from './scanner.js';
-import { generateCode, generateJs, generateDeclaration, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
+import { generateCode, generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
 export { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, type PropertyRule, type ThemedDeclarations } from './parser.js';
-export { generateCode, generateJs, generateDeclaration } from './generator.js';
+export { generateCode, generateJs, generateDeclaration, generateTokens } from './generator.js';
 export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from './scanner.js';
 export type { NamingConvention, GeneratorOptions } from './generator.js';
 
 export interface GenerateOptions {
   input: string | string[];
+  /** `.ts`, `.js`/`.mjs`/`.cjs` (plus a `.d.ts`), or `.json` for a W3C design tokens (DTCG) file. */
   output: string;
   exclude?: string | string[];
   prefix?: string;
@@ -82,6 +83,10 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
     helpers: options.helpers,
     themes: scanned.themes,
   };
+
+  if (/\.json$/i.test(options.output)) {
+    return { outPath, content: generateTokens(names, generatorOptions) };
+  }
 
   const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);
   if (jsExtMatch) {

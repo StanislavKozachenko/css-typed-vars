@@ -5,7 +5,7 @@ import { generate } from 'css-typed-vars';
 
 await generate({
   input: 'src/styles/**/*.{css,scss}',
-  output: 'src/cssVars.ts',  // or 'src/cssVars.js' → generates .js + .d.ts
+  output: 'src/cssVars.ts',  // or 'src/cssVars.js' → .js + .d.ts, or 'tokens.json' → design tokens
   exclude: ['**/vendor/**'],
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
@@ -67,6 +67,7 @@ import {
   generateCode,          // (varNames, options?: GeneratorOptions) => string
   generateJs,
   generateDeclaration,
+  generateTokens,        // (varNames, options?) => string — DTCG JSON, see Design tokens
 } from 'css-typed-vars';
 ```
 

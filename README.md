@@ -118,6 +118,7 @@ npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts 
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/vendor/**"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme --naming snake
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
+npx css-typed-vars --input "src/**/*.css" --output tokens.json      # W3C design tokens (DTCG) JSON
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for CI: exits 1 if out of date
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --group  # nest keys by first name segment
@@ -128,7 +129,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | Flag | Description |
 |------|-------------|
 | `--input` | Glob pattern for CSS/SCSS/Less files (repeatable: `--input "src/**/*.css" --input "lib/**/*.css"`) |
-| `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside |
+| `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside, `.json` → [design tokens](#design-tokens-dtcg) |
 | `--exclude` | Glob pattern for files to exclude (repeatable: `--exclude "**/a/**" --exclude "**/b/**"`) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming: `camelCase` (default), `snake`, `kebab`, `constant`, `pascal` |
@@ -284,6 +285,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
 | `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
 | `dts` | `string \| false` | inside `node_modules` | Path to write type declarations. `false` to skip |
+| `tokens` | `string` | — | Also write a [design tokens (DTCG)](#design-tokens-dtcg) JSON file to this path |
 
 ---
 
@@ -347,7 +349,7 @@ import { generate } from 'css-typed-vars';
 
 await generate({
   input: 'src/styles/**/*.{css,scss}',
-  output: 'src/cssVars.ts',  // or 'src/cssVars.js' → generates .js + .d.ts
+  output: 'src/cssVars.ts',  // or 'src/cssVars.js' → .js + .d.ts, or 'tokens.json' → design tokens
   exclude: ['**/vendor/**'],
   prefix: 'theme',
   naming: 'snake',           // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
@@ -367,7 +369,7 @@ await generate({
 Lower-level exports:
 
 ```ts
-import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, generateCode, scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from 'css-typed-vars';
+import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, generateCode, generateTokens, scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from 'css-typed-vars';
 ```
 
 ## Supported formats
@@ -417,6 +419,31 @@ export const cssVars = {
 - A variable declared only inside a theme (`--glow` above) is still generated, with just its theme tags.
 - An `@media` theme matches by its prelude, ignoring whitespace and case. Other `@media` blocks are read as before.
 - On the CLI, pass `--theme <name>=<selector>` (repeatable): `--theme dark='[data-theme="dark"]'`.
+
+## Design tokens (DTCG)
+
+Point `output` at a `.json` file to get a [W3C Design Tokens](https://www.designtokens.org/tr/drafts/format/) document instead of TypeScript, for Style Dictionary, Tokens Studio and similar tools:
+
+```sh
+npx css-typed-vars --input "src/**/*.css" --output tokens/tokens.json --group
+```
+
+```json
+{
+  "color": {
+    "link": { "$value": "{color.primary}" },
+    "primary": { "$value": "#3b82f6", "$type": "color" }
+  }
+}
+```
+
+- Keys follow `naming`/`prefix`/`group`, like the generated object.
+- `$value` is the declared value (or the `@property` `initial-value`); `$type` is inferred from the `@property` syntax (`<color>`, `<length>`, `<number>`, `<time>`, ...).
+- A value that's exactly `var(--other)` becomes an alias (`{color.primary}`) when `--other` is in the file.
+- [Theme values](#theme-values) go under `$extensions["css-typed-vars"].themes`.
+- The plugin can write the file too: `cssTypedVars({ input, tokens: 'tokens/tokens.json' })`.
+
+See the [Design tokens guide](https://stanislavkozachenko.github.io/css-typed-vars/guide/design-tokens) for details.
 
 ## @property syntax typing
 

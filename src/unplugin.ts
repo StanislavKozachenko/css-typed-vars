@@ -2,7 +2,7 @@ import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { scanCss, scanUsage, collectVarNames, type ScannedCss } from './scanner.js';
-import { generateJs, generateDeclaration, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
+import { generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
 export interface Options {
@@ -14,6 +14,8 @@ export interface Options {
    * - `false`: skip writing
    */
   dts?: string | false;
+  /** Also write a W3C design tokens (DTCG) JSON file to this path, relative to project root. */
+  tokens?: string;
   exclude?: string | string[];
   prefix?: string;
   naming?: NamingConvention;
@@ -45,6 +47,16 @@ function getDtsPath(options: Options): string | null {
   return options.dts
     ? resolve(process.cwd(), options.dts)
     : join(__dirname, 'generated.d.ts');
+}
+
+// The files to write for a scan: the declaration file (unless `dts: false`)
+// and, when `tokens` is set, the design tokens JSON.
+function outputFiles(options: Options, names: string[], generatorOptions: GeneratorOptions): Array<[path: string, content: string]> {
+  const files: Array<[string, string]> = [];
+  const dtsPath = getDtsPath(options);
+  if (dtsPath) files.push([dtsPath, generateDeclaration(names, generatorOptions)]);
+  if (options.tokens) files.push([resolve(process.cwd(), options.tokens), generateTokens(names, generatorOptions)]);
+  return files;
 }
 
 export default createUnplugin((options: Options) => {
@@ -103,14 +115,15 @@ export default createUnplugin((options: Options) => {
           const names = await resolveNames(scanned);
           if (myGeneration !== generation) return;
 
-          const dtsPath = getDtsPath(options);
-          if (dtsPath) {
-            const content = generateDeclaration(names, generatorOptions(scanned));
+          const files = outputFiles(options, names, generatorOptions(scanned));
+          if (files.length > 0) {
             // Writes are serialized (not just generation-gated before starting) so a slower
             // write for an older generation can never complete after a newer one's and clobber it.
             writeQueue = writeQueue.then(async () => {
-              if (myGeneration !== generation) return;
-              await writeFile(dtsPath, content, 'utf8');
+              for (const [path, content] of files) {
+                if (myGeneration !== generation) return;
+                await writeFile(path, content, 'utf8');
+              }
             }).catch(console.error);
             await writeQueue;
           }
@@ -142,9 +155,9 @@ export default createUnplugin((options: Options) => {
       cachedScan = scan();
       const scanned = await cachedScan;
       const names = await resolveNames(scanned);
-      const dtsPath = getDtsPath(options);
-      if (!dtsPath) return;
-      await writeFile(dtsPath, generateDeclaration(names, generatorOptions(scanned)), 'utf8');
+      for (const [path, content] of outputFiles(options, names, generatorOptions(scanned))) {
+        await writeFile(path, content, 'utf8');
+      }
     },
 
     resolveId(id: string) {

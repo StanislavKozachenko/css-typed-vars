@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { generateCode, generateDeclaration, generateJs, findKeyCollisions, computeKey, computeKeyPath } from '../generator.js';
+import { generateCode, generateDeclaration, generateJs, generateTokens, findKeyCollisions, computeKey, computeKeyPath } from '../generator.js';
 import type { PropertyRule } from '../parser.js';
 
 describe('generateCode', () => {
@@ -558,6 +558,86 @@ describe('theme values (themes option)', () => {
   it('escapes */ in a theme value', () => {
     const result = generateCode(['--x'], { themes: new Map([['dark', new Map([['--x', 'a*/b']])]]) });
     expect(result).toContain('/** @theme dark a*\\/b */');
+  });
+});
+
+describe('generateTokens (DTCG JSON)', () => {
+  const names = ['--color-primary', '--color-link', '--spacing-md', '--duration'];
+  const declarations = new Map([
+    ['--color-primary', '#3b82f6'],
+    ['--color-link', 'var(--color-primary)'],
+    ['--spacing-md', '8px'],
+    ['--duration', '200ms'],
+  ]);
+  const properties = new Map<string, PropertyRule>([
+    ['--color-primary', { syntax: "'<color>'" }],
+    ['--spacing-md', { syntax: '"<length>"' }],
+    ['--duration', { syntax: "'<time>'" }],
+  ]);
+
+  it('emits flat tokens keyed like the generated object', () => {
+    const tokens = JSON.parse(generateTokens(names, { declarations }));
+    expect(tokens).toEqual({
+      colorLink: { $value: '{colorPrimary}' },
+      colorPrimary: { $value: '#3b82f6' },
+      duration: { $value: '200ms' },
+      spacingMd: { $value: '8px' },
+    });
+  });
+
+  it('infers $type from the @property syntax', () => {
+    const tokens = JSON.parse(generateTokens(names, { declarations, properties }));
+    expect(tokens.colorPrimary.$type).toBe('color');
+    expect(tokens.spacingMd.$type).toBe('dimension');
+    expect(tokens.duration.$type).toBe('duration');
+    expect(tokens.colorLink.$type).toBeUndefined();
+  });
+
+  it('nests tokens by group and uses dotted aliases', () => {
+    const tokens = JSON.parse(generateTokens(names, { declarations, group: true, naming: 'kebab' }));
+    expect(tokens.color).toEqual({ primary: { $value: '#3b82f6' }, link: { $value: '{color.primary}' } });
+    expect(tokens.spacing.md.$value).toBe('8px');
+    expect(tokens.duration.$value).toBe('200ms');
+  });
+
+  it('applies the prefix to keys and aliases', () => {
+    const tokens = JSON.parse(generateTokens(['--a', '--b'], { prefix: 'ds', declarations: new Map([['--a', '1px'], ['--b', 'var( --a )']]) }));
+    expect(tokens).toEqual({ dsA: { $value: '1px' }, dsB: { $value: '{dsA}' } });
+  });
+
+  it('keeps var() references to vars outside the document as-is', () => {
+    const tokens = JSON.parse(generateTokens(['--a'], { declarations: new Map([['--a', 'var(--elsewhere)']]) }));
+    expect(tokens.a.$value).toBe('var(--elsewhere)');
+  });
+
+  it('puts theme values under $extensions, resolving aliases there too', () => {
+    const themes = new Map([['dark', new Map([['--color-primary', '#60a5fa'], ['--color-link', 'var(--color-primary)']])]]);
+    const tokens = JSON.parse(generateTokens(names, { declarations, themes }));
+    expect(tokens.colorPrimary.$extensions).toEqual({ 'css-typed-vars': { themes: { dark: '#60a5fa' } } });
+    expect(tokens.colorLink.$extensions['css-typed-vars'].themes.dark).toBe('{colorPrimary}');
+    expect(tokens.spacingMd.$extensions).toBeUndefined();
+  });
+
+  it('falls back to the @property initial-value and skips vars with no default', () => {
+    const themes = new Map([['dark', new Map([['--glow', '2px']])]]);
+    const tokens = JSON.parse(generateTokens(['--mode', '--glow'], {
+      properties: new Map([['--mode', { syntax: '"light | dark"', initialValue: 'light' }]]),
+      themes,
+    }));
+    expect(tokens).toEqual({ mode: { $value: 'light' } });
+  });
+
+  it('does not alias to a skipped var', () => {
+    const tokens = JSON.parse(generateTokens(['--a', '--b'], {
+      declarations: new Map([['--b', 'var(--a)']]),
+      themes: new Map([['dark', new Map([['--a', '1px']])]]),
+    }));
+    expect(tokens).toEqual({ b: { $value: 'var(--a)' } });
+  });
+
+  it('ends with a newline and rejects group + prefix', () => {
+    expect(generateTokens(['--a'], { declarations: new Map([['--a', '1']]) }).endsWith('}\n')).toBe(true);
+    expect(() => generateTokens(['--a-b'], { group: true, prefix: 'x' })).toThrow(/cannot be combined with "prefix"/);
   });
 });
 

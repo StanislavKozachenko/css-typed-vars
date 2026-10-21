@@ -36,6 +36,7 @@ npx css-typed-vars --input "src/styles/**/*.{css,scss}" --output src/cssVars.ts 
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --exclude "**/vendor/**"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prefix theme --naming snake
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.js  # generates .js + .d.ts
+npx css-typed-vars --input "src/**/*.css" --output tokens.json      # W3C design tokens (DTCG) JSON
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --selector ".dark" --selector "[data-theme='dark']"
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --check  # for CI: exits 1 if out of date
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --group  # nest keys by first name segment
@@ -46,7 +47,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | Flag | Description |
 |------|-------------|
 | `--input` | Glob pattern for CSS/SCSS/Less files (repeatable: `--input "src/**/*.css" --input "lib/**/*.css"`) |
-| `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside |
+| `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside, `.json` → [design tokens](/guide/design-tokens) |
 | `--exclude` | Glob pattern for files to exclude (repeatable: `--exclude "**/a/**" --exclude "**/b/**"`) |
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming — see [Naming conventions](/guide/naming-conventions) |
