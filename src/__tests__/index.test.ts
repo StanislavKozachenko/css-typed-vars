@@ -242,15 +242,44 @@ describe('generate', () => {
     expect(result).toContain("colorPrimary: 'var(--color-primary)'");
   });
 
-  it('throws when prune is combined with group', async () => {
+  it('prunes grouped leaves by their nested cssVars.<group>.<key> usage', async () => {
     const input = join(dir, 'prune-group.css');
     const output = join(dir, 'pruneGroupVars.ts');
-    const { writeFile } = await import('node:fs/promises');
-    await writeFile(input, ':root { --color-primary: red; }');
+    const srcDir = join(dir, 'prune-group-src');
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; --color-secondary: blue; --spacing-md: 8px; --gap: 4px; }');
+    await writeFile(join(srcDir, 'a.ts'), "cssVars.color.primary; cssVars['gap'];");
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await expect(generate({ input, output, prune: true, group: true, usage: `${dir}/*.ts` })).rejects.toThrow(
-      /cannot be combined with "group"/,
-    );
+    await generate({ input, output, prune: true, group: true, usage: `${srcDir}/*.ts` });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pruned 2 unused variable(s): --color-secondary, --spacing-md'));
+    warn.mockRestore();
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("primary: 'var(--color-primary)'");
+    expect(result).toContain("gap: 'var(--gap)'");
+    expect(result).not.toContain('--color-secondary');
+    expect(result).not.toContain('spacing');
+  });
+
+  it('keeps every leaf of a group referenced as a whole', async () => {
+    const input = join(dir, 'prune-group-whole.css');
+    const output = join(dir, 'pruneGroupWholeVars.ts');
+    const srcDir = join(dir, 'prune-group-whole-src');
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; --color-secondary: blue; --spacing-md: 8px; }');
+    await writeFile(join(srcDir, 'a.ts'), 'const palette = Object.values(cssVars.color);');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await generate({ input, output, prune: true, group: true, usage: `${srcDir}/*.ts` });
+    warn.mockRestore();
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("primary: 'var(--color-primary)'");
+    expect(result).toContain("secondary: 'var(--color-secondary)'");
+    expect(result).not.toContain('--spacing-md');
   });
 
   it('throws when prune is used without usage', async () => {
@@ -285,6 +314,17 @@ describe('findUnusedVars', () => {
     await writeFile(join(srcDir, 'app.ts'), 'cssVars.colorPrimary');
 
     expect(await findUnusedVars({ input, usage: `${srcDir}/*.ts` })).toEqual([]);
+  });
+
+  it('matches grouped usage when group is set', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const input = join(dir, 'unused-group.css');
+    const srcDir = join(dir, 'unused-src-group');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; --color-secondary: blue; }');
+    await writeFile(join(srcDir, 'app.ts'), "cssVars['color'].primary");
+
+    expect(await findUnusedVars({ input, group: true, usage: `${srcDir}/*.ts` })).toEqual(['--color-secondary']);
   });
 
   it('throws when called without usage', async () => {

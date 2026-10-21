@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCode, generateDeclaration, generateJs, findKeyCollisions, computeKey } from '../generator.js';
+import { generateCode, generateDeclaration, generateJs, findKeyCollisions, computeKey, computeKeyPath } from '../generator.js';
 import type { PropertyRule } from '../parser.js';
 
 describe('generateCode', () => {
@@ -444,6 +444,44 @@ describe('computeKey', () => {
 
   it('matches the constant-case key', () => {
     expect(computeKey('--color-primary', undefined, 'constant')).toBe('COLOR_PRIMARY');
+  });
+});
+
+describe('options object', () => {
+  const names = ['--color-primary', '--spacing-md'];
+  const declarations = new Map([['--color-primary', 'red'], ['--spacing-md', '8px']]);
+
+  it('produces the same output as the legacy positional arguments', () => {
+    expect(generateCode(names, { prefix: 'ds', naming: 'snake', declarations }))
+      .toBe(generateCode(names, 'ds', 'snake', declarations));
+    expect(generateJs(names, { group: true, declarations }))
+      .toBe(generateJs(names, undefined, undefined, declarations, true));
+    expect(generateDeclaration(names, { naming: 'kebab' }))
+      .toBe(generateDeclaration(names, undefined, 'kebab'));
+  });
+
+  it('applies options passed as an object', () => {
+    const result = generateCode(names, { naming: 'constant', declarations });
+    expect(result).toContain("COLOR_PRIMARY: 'var(--color-primary)'");
+    expect(result).toContain('/** @default red */');
+  });
+
+  it('treats an empty options object like no options', () => {
+    expect(generateCode(names, {})).toBe(generateCode(names));
+  });
+});
+
+describe('computeKeyPath', () => {
+  it('returns the flat key when group is off', () => {
+    expect(computeKeyPath('--color-primary', 'ds')).toEqual(['dsColorPrimary']);
+  });
+
+  it('returns [group, leaf] when group is on', () => {
+    expect(computeKeyPath('--color-primary-dark', undefined, 'snake', true)).toEqual(['color', 'primary_dark']);
+  });
+
+  it('returns a single key for a name with nothing to group by', () => {
+    expect(computeKeyPath('--gap', undefined, undefined, true)).toEqual(['gap']);
   });
 });
 

@@ -1,12 +1,13 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { scanCss, scanVarDeclarations, scanUsedKeys } from './scanner.js';
-import { generateCode, generateJs, generateDeclaration, warnOnCollisions, computeKey, type NamingConvention } from './generator.js';
+import { scanCss, scanVarDeclarations, scanUsage } from './scanner.js';
+import { generateCode, generateJs, generateDeclaration, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
+import { assertPruneCompatible, partitionUnused } from './prune.js';
 
 export { parseVarNames, parseVarDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
 export { generateCode, generateJs, generateDeclaration } from './generator.js';
 export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from './scanner.js';
-export type { NamingConvention } from './generator.js';
+export type { NamingConvention, GeneratorOptions } from './generator.js';
 
 export interface GenerateOptions {
   input: string | string[];
@@ -16,47 +17,25 @@ export interface GenerateOptions {
   naming?: NamingConvention;
   selectors?: string[];
   group?: boolean;
-  /** Prune generated vars with no detected `cssVars.<key>` usage. Requires `usage`, and can't be combined with `group`. */
+  /** Prune generated vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>`) usage. Requires `usage`. */
   prune?: boolean;
   /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true, or when calling `findUnusedVars`. */
   usage?: string | string[];
   usageExclude?: string | string[];
 }
 
-function assertPruneCompatible(options: Pick<GenerateOptions, 'prune' | 'group' | 'usage'>): void {
-  if (!options.prune) return;
-  if (options.group) throw new Error('css-typed-vars: "prune" cannot be combined with "group".');
-  if (!options.usage) throw new Error('css-typed-vars: "prune" requires "usage" (glob(s) of source files to scan).');
-}
-
-// Drops names whose computed key has no detected usage, returning what's left
-// plus the dropped names (for a caller to warn/report with).
-function partitionUnused(
-  names: string[],
-  usedKeys: Set<string>,
-  prefix: string | undefined,
-  naming: NamingConvention | undefined,
-): { used: string[]; unused: string[] } {
-  const used: string[] = [];
-  const unused: string[] = [];
-  for (const name of names) {
-    (usedKeys.has(computeKey(name, prefix, naming)) ? used : unused).push(name);
-  }
-  return { used, unused };
-}
-
 // Reports CSS variables with no detected `cssVars.<key>` usage in the given
 // source files, without writing or pruning anything. Backs `--prune-check`.
 export async function findUnusedVars(
-  options: Pick<GenerateOptions, 'input' | 'exclude' | 'selectors' | 'prefix' | 'naming' | 'usage' | 'usageExclude'>,
+  options: Pick<GenerateOptions, 'input' | 'exclude' | 'selectors' | 'prefix' | 'naming' | 'group' | 'usage' | 'usageExclude'>,
 ): Promise<string[]> {
   if (!options.usage) throw new Error('css-typed-vars: findUnusedVars requires "usage" (glob(s) of source files to scan).');
-  const [declarations, usedKeys] = await Promise.all([
+  const [declarations, usage] = await Promise.all([
     scanVarDeclarations(options.input, options.exclude, options.selectors),
-    scanUsedKeys(options.usage, options.usageExclude),
+    scanUsage(options.usage, options.usageExclude),
   ]);
   const names = [...declarations.keys()].sort();
-  return partitionUnused(names, usedKeys, options.prefix, options.naming).unused;
+  return partitionUnused(names, usage, options).unused;
 }
 
 interface ComputedOutput {
@@ -76,8 +55,8 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
   warnOnCollisions(names, options.prefix, options.naming);
 
   if (options.prune) {
-    const usedKeys = await scanUsedKeys(options.usage!, options.usageExclude);
-    const { used, unused } = partitionUnused(names, usedKeys, options.prefix, options.naming);
+    const usage = await scanUsage(options.usage!, options.usageExclude);
+    const { used, unused } = partitionUnused(names, usage, options);
     if (unused.length > 0) {
       console.warn(`css-typed-vars: pruned ${unused.length} unused variable(s): ${unused.join(', ')}`);
     }
@@ -85,15 +64,22 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
   }
 
   const outPath = resolve(options.output);
+  const generatorOptions: GeneratorOptions = {
+    prefix: options.prefix,
+    naming: options.naming,
+    declarations,
+    group: options.group,
+    properties,
+  };
 
   const jsExtMatch = /\.(m|c)?js$/i.exec(options.output);
   if (jsExtMatch) {
-    const content = generateJs(names, options.prefix, options.naming, declarations, options.group, properties);
+    const content = generateJs(names, generatorOptions);
     const dtsPath = outPath.slice(0, -jsExtMatch[0].length) + '.d.ts';
-    const dtsContent = generateDeclaration(names, options.prefix, options.naming, declarations, options.group, properties);
+    const dtsContent = generateDeclaration(names, generatorOptions);
     return { outPath, content, dtsPath, dtsContent };
   }
-  return { outPath, content: generateCode(names, options.prefix, options.naming, declarations, options.group, properties) };
+  return { outPath, content: generateCode(names, generatorOptions) };
 }
 
 export async function generate(options: GenerateOptions): Promise<void> {

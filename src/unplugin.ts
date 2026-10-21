@@ -1,8 +1,9 @@
 import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { scanCss, scanUsedKeys, type ScannedCss } from './scanner.js';
-import { generateJs, generateDeclaration, warnOnCollisions, computeKey, type NamingConvention } from './generator.js';
+import { scanCss, scanUsage, type ScannedCss } from './scanner.js';
+import { generateJs, generateDeclaration, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
+import { assertPruneCompatible, partitionUnused } from './prune.js';
 
 export interface Options {
   input: string | string[];
@@ -18,7 +19,7 @@ export interface Options {
   naming?: NamingConvention;
   selectors?: string[];
   group?: boolean;
-  /** Prune generated vars with no detected `cssVars.<key>` usage. Requires `usage`, and can't be combined with `group`. */
+  /** Prune generated vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>`) usage. Requires `usage`. */
   prune?: boolean;
   /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true. */
   usage?: string | string[];
@@ -39,10 +40,7 @@ function getDtsPath(options: Options): string | null {
 }
 
 export default createUnplugin((options: Options) => {
-  if (options.prune) {
-    if (options.group) throw new Error('css-typed-vars: "prune" cannot be combined with "group".');
-    if (!options.usage) throw new Error('css-typed-vars: "prune" requires "usage" (glob(s) of source files to scan).');
-  }
+  assertPruneCompatible(options);
 
   let cachedScan: Promise<ScannedCss> | null = null;
 
@@ -52,14 +50,21 @@ export default createUnplugin((options: Options) => {
   // (warning about it). A no-op otherwise.
   const applyPrune = async (names: string[]): Promise<string[]> => {
     if (!options.prune) return names;
-    const usedKeys = await scanUsedKeys(options.usage!, options.usageExclude);
-    const isUsed = (name: string) => usedKeys.has(computeKey(name, options.prefix, options.naming));
-    const unused = names.filter((name) => !isUsed(name));
+    const usage = await scanUsage(options.usage!, options.usageExclude);
+    const { used, unused } = partitionUnused(names, usage, options);
     if (unused.length > 0) {
       console.warn(`css-typed-vars: pruned ${unused.length} unused variable(s): ${unused.join(', ')}`);
     }
-    return names.filter(isUsed);
+    return used;
   };
+
+  const generatorOptions = ({ declarations, properties }: ScannedCss): GeneratorOptions => ({
+    prefix: options.prefix,
+    naming: options.naming,
+    declarations,
+    group: options.group,
+    properties,
+  });
 
   // Sorts the scanned names, warns on key collisions, and applies pruning.
   const resolveNames = async (declarations: Map<string, string>): Promise<string[]> => {
@@ -83,14 +88,14 @@ export default createUnplugin((options: Options) => {
           const myGeneration = ++generation;
           const scanPromise = scan();
           cachedScan = scanPromise;
-          const { declarations, properties } = await scanPromise;
+          const scanned = await scanPromise;
           if (myGeneration !== generation) return;
-          const names = await resolveNames(declarations);
+          const names = await resolveNames(scanned.declarations);
           if (myGeneration !== generation) return;
 
           const dtsPath = getDtsPath(options);
           if (dtsPath) {
-            const content = generateDeclaration(names, options.prefix, options.naming, declarations, options.group, properties);
+            const content = generateDeclaration(names, generatorOptions(scanned));
             // Writes are serialized (not just generation-gated before starting) so a slower
             // write for an older generation can never complete after a newer one's and clobber it.
             writeQueue = writeQueue.then(async () => {
@@ -125,11 +130,11 @@ export default createUnplugin((options: Options) => {
 
     async buildStart() {
       cachedScan = scan();
-      const { declarations, properties } = await cachedScan;
-      const names = await resolveNames(declarations);
+      const scanned = await cachedScan;
+      const names = await resolveNames(scanned.declarations);
       const dtsPath = getDtsPath(options);
       if (!dtsPath) return;
-      await writeFile(dtsPath, generateDeclaration(names, options.prefix, options.naming, declarations, options.group, properties), 'utf8');
+      await writeFile(dtsPath, generateDeclaration(names, generatorOptions(scanned)), 'utf8');
     },
 
     resolveId(id: string) {
@@ -138,9 +143,9 @@ export default createUnplugin((options: Options) => {
 
     async load(id: string) {
       if (id === RESOLVED_ID) {
-        const { declarations, properties } = await (cachedScan ?? scan());
-        const names = await applyPrune([...declarations.keys()].sort());
-        return generateJs(names, options.prefix, options.naming, declarations, options.group, properties);
+        const scanned = await (cachedScan ?? scan());
+        const names = await applyPrune([...scanned.declarations.keys()].sort());
+        return generateJs(names, generatorOptions(scanned));
       }
     },
   };

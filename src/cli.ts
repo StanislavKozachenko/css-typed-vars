@@ -133,18 +133,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if ((prune || pruneCheckMode) && group) {
-    console.error('css-typed-vars: --prune/--prune-check cannot be combined with --group.');
-    process.exit(1);
-  }
-
   if ((prune || pruneCheckMode) && !usage) {
     console.error('css-typed-vars: --prune/--prune-check requires --usage <glob> (source files to scan for cssVars usage).');
     process.exit(1);
   }
 
   if (pruneCheckMode) {
-    const unused = await findUnusedVars({ input, exclude, selectors, prefix, naming, usage, usageExclude });
+    const unused = await findUnusedVars({ input, exclude, selectors, prefix, naming, group, usage, usageExclude });
     if (unused.length > 0) {
       console.error(`css-typed-vars: ${unused.length} unused variable(s): ${unused.join(', ')}`);
       process.exit(1);

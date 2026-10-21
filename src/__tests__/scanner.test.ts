@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanCss } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -189,6 +189,42 @@ describe('scanUsedKeys', () => {
     const result = await scanUsedKeys(`${usageDir}/*.{ts,tsx}`, `${usageDir}/c.ts`);
     expect(result.has('spacingLg')).toBe(false);
     expect(result.has('colorPrimary')).toBe(true);
+  });
+});
+
+describe('scanUsage', () => {
+  let usageDir: string;
+
+  beforeAll(async () => {
+    usageDir = await mkdtemp(join(tmpdir(), 'css-typed-vars-nested-'));
+    await writeFile(join(usageDir, 'a.ts'), `
+      const a = cssVars.color.primary;
+      const b = cssVars['spacing']["md"];
+      const c = cssVars.radius;
+      const d = cssVars.font.size.toUpperCase();
+    `);
+  });
+
+  afterAll(async () => {
+    await rm(usageDir, { recursive: true });
+  });
+
+  it('records second-level access as a path', async () => {
+    const { paths } = await scanUsage(`${usageDir}/*.ts`);
+    expect(paths.has('color\0primary')).toBe(true);
+    expect(paths.has('spacing\0md')).toBe(true);
+    expect(paths.has('font\0size')).toBe(true);
+  });
+
+  it('records keys referenced without further access as whole keys', async () => {
+    const { wholeKeys } = await scanUsage(`${usageDir}/*.ts`);
+    expect([...wholeKeys]).toEqual(['radius']);
+  });
+
+  it('records every first-level key, matching scanUsedKeys', async () => {
+    const { keys } = await scanUsage(`${usageDir}/*.ts`);
+    expect(keys).toEqual(await scanUsedKeys(`${usageDir}/*.ts`));
+    expect([...keys].sort()).toEqual(['color', 'font', 'radius', 'spacing']);
   });
 });
 
