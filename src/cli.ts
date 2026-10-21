@@ -35,6 +35,7 @@ interface Config {
   prefix?: string;
   naming?: NamingConvention;
   selectors?: string[];
+  themes?: Record<string, string>;
   group?: boolean;
   prune?: boolean;
   usage?: string | string[];
@@ -74,6 +75,7 @@ interface RunOptions {
   prefix?: string;
   naming?: NamingConvention;
   selectors?: string[];
+  themes?: Record<string, string>;
   group?: boolean;
   prune?: boolean;
   usage?: string | string[];
@@ -108,6 +110,16 @@ async function main(): Promise<void> {
   const naming = namingRaw as NamingConvention | undefined;
   const selectorArgs = getArgs('--selector');
   const selectors = selectorArgs.length > 0 ? selectorArgs : config.selectors;
+  const themeArgs = getArgs('--theme');
+  for (const arg of themeArgs) {
+    if (!/^[^=]+=.+$/.test(arg)) {
+      console.error(`css-typed-vars: invalid --theme value "${arg}". Expected <name>=<selector or @media prelude>, e.g. dark=[data-theme="dark"].`);
+      process.exit(1);
+    }
+  }
+  const themes = themeArgs.length > 0
+    ? Object.fromEntries(themeArgs.map((arg) => [arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1)]))
+    : config.themes;
   const group = groupFlag || config.group;
   const prune = pruneFlag || config.prune;
   const usageArgs = getArgs('--usage');
@@ -117,7 +129,7 @@ async function main(): Promise<void> {
   const helpers = helpersFlag || config.helpers;
 
   if (!input || !output) {
-    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--helpers] [--prune --usage <glob>] [--prune-check --usage <glob>]');
+    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--helpers] [--theme <name>=<selector>] [--prune --usage <glob>] [--prune-check --usage <glob>]');
     console.error('Or add a css-typed-vars.config.js file with input and output fields.');
     process.exit(1);
   }
@@ -143,7 +155,7 @@ async function main(): Promise<void> {
   }
 
   if (pruneCheckMode) {
-    const unused = await findUnusedVars({ input, exclude, selectors, prefix, naming, group, usage, usageExclude });
+    const unused = await findUnusedVars({ input, exclude, selectors, themes, prefix, naming, group, usage, usageExclude });
     if (unused.length > 0) {
       console.error(`css-typed-vars: ${unused.length} unused variable(s): ${unused.join(', ')}`);
       process.exit(1);
@@ -152,7 +164,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runOptions: RunOptions = { input, output, exclude, prefix, naming, selectors, group, prune, usage, usageExclude, helpers };
+  const runOptions: RunOptions = { input, output, exclude, prefix, naming, selectors, themes, group, prune, usage, usageExclude, helpers };
 
   if (checkMode) {
     const upToDate = await checkGenerated(runOptions);

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import fg from 'fast-glob';
-import { parseVarDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
+import { parseThemedDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
@@ -9,6 +9,18 @@ function normalizePatterns(patterns: string | string[]): string[] {
 export interface ScannedCss {
   declarations: Map<string, string>;
   properties: Map<string, PropertyRule>;
+  /** Per theme name (from the `themes` option), the values declared for it. Empty without `themes`. */
+  themes: Map<string, Map<string, string>>;
+}
+
+// Every var name found, sorted — base declarations plus any declared only
+// inside a theme block.
+export function collectVarNames(scanned: ScannedCss): string[] {
+  const names = new Set(scanned.declarations.keys());
+  for (const values of scanned.themes.values()) {
+    for (const name of values.keys()) names.add(name);
+  }
+  return [...names].sort();
 }
 
 // Reads are run concurrently for speed, but merged sequentially in fast-glob's
@@ -20,6 +32,7 @@ export async function scanCss(
   patterns: string | string[],
   exclude?: string | string[],
   selectors?: string[],
+  themes: Record<string, string> = {},
 ): Promise<ScannedCss> {
   const normalized = normalizePatterns(patterns);
   const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
@@ -31,18 +44,23 @@ export async function scanCss(
         css = await readFile(file, 'utf8');
       } catch (err) {
         console.warn(`css-typed-vars: skipping "${file}": ${(err as Error).message}`);
-        return { declarations: new Map<string, string>(), properties: new Map<string, PropertyRule>() };
+        return null;
       }
-      return { declarations: parseVarDeclarations(css, selectors), properties: parsePropertyRules(css) };
+      return { ...parseThemedDeclarations(css, selectors, themes), properties: parsePropertyRules(css) };
     }),
   );
   const declarations = new Map<string, string>();
   const properties = new Map<string, PropertyRule>();
+  const themeValues = new Map(Object.keys(themes).map((theme) => [theme, new Map<string, string>()]));
   for (const result of perFile) {
+    if (!result) continue;
     for (const [name, value] of result.declarations) declarations.set(name, value);
     for (const [name, rule] of result.properties) properties.set(name, rule);
+    for (const [theme, values] of result.themes) {
+      for (const [name, value] of values) themeValues.get(theme)!.set(name, value);
+    }
   }
-  return { declarations, properties };
+  return { declarations, properties, themes: themeValues };
 }
 
 export async function scanVarDeclarations(

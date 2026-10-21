@@ -532,6 +532,35 @@ describe('runtime helpers (helpers: true)', () => {
 });
 
 
+describe('theme values (themes option)', () => {
+  const declarations = new Map([['--color-bg', '#fff']]);
+  const themes = new Map([
+    ['dark', new Map([['--color-bg', '#000'], ['--dark-only', '1px']])],
+    ['hc', new Map([['--color-bg', '#ff0']])],
+  ]);
+
+  it('emits one @theme tag per theme value, under @default', () => {
+    const result = generateCode(['--color-bg', '--dark-only'], { declarations, themes });
+    expect(result).toContain([
+      '  /** @default #fff */',
+      '  /** @theme dark #000 */',
+      '  /** @theme hc #ff0 */',
+      "  colorBg: 'var(--color-bg)',",
+    ].join('\n'));
+    expect(result).toContain("  /** @theme dark 1px */\n  darkOnly: 'var(--dark-only)',");
+  });
+
+  it('emits theme tags in grouped and declaration output too', () => {
+    expect(generateCode(['--color-bg'], { declarations, themes, group: true })).toContain('    /** @theme dark #000 */\n    /** @theme hc #ff0 */\n    bg:');
+    expect(generateDeclaration(['--color-bg'], { declarations, themes })).toContain('  /** @theme hc #ff0 */');
+  });
+
+  it('escapes */ in a theme value', () => {
+    const result = generateCode(['--x'], { themes: new Map([['dark', new Map([['--x', 'a*/b']])]]) });
+    expect(result).toContain('/** @theme dark a*\\/b */');
+  });
+});
+
 describe('computeKeyPath', () => {
   it('returns the flat key when group is off', () => {
     expect(computeKeyPath('--color-primary', 'ds')).toEqual(['dsColorPrimary']);

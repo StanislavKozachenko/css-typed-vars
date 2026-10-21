@@ -51,6 +51,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--prefix` | Prefix for generated keys: `--prefix theme` → `themeColorPrimary` |
 | `--naming` | Key naming — see [Naming conventions](/guide/naming-conventions) |
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
+| `--theme` | Named theme block (repeatable: `--theme dark='[data-theme="dark"]'`) — see [Theme values](/guide/supported-formats#theme-values) |
 | `--group` | Nest keys by each variable's first hyphen segment — see [Grouped output](#grouped-output) |
 | `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar`/`setCssVar` runtime helpers — see [Usage examples](/guide/usage#reading-and-writing-at-runtime) |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage — see [Pruning unused variables](#pruning-unused-variables) |
@@ -82,6 +83,7 @@ export default {
   prefix: 'theme',
   naming: 'snake', // 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal'
   selectors: ['.dark', '[data-theme="dark"]'],
+  themes: { dark: '[data-theme="dark"]' },
   group: false,
   helpers: false,
   prune: false,
