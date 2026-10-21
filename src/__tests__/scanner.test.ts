@@ -211,9 +211,9 @@ describe('scanUsage', () => {
 
   it('records second-level access as a path', async () => {
     const { paths } = await scanUsage(`${usageDir}/*.ts`);
-    expect(paths.has('color primary')).toBe(true);
-    expect(paths.has('spacing md')).toBe(true);
-    expect(paths.has('font size')).toBe(true);
+    expect(paths.has('color\0primary')).toBe(true);
+    expect(paths.has('spacing\0md')).toBe(true);
+    expect(paths.has('font\0size')).toBe(true);
   });
 
   it('records keys referenced without further access as whole keys', async () => {
