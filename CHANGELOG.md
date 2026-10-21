@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.7.0] - 2026-10-21
+
+### Added
+
+- add W3C design tokens (DTCG) JSON output
+- add themes option for per-theme variable values
+- add opt-in getCssVar/setCssVar runtime helpers
+- add options-object generator API and support prune with group
+
+### Fixed
+
+- sync docs version with package.json and add favicon
+
+---
+
+
 ## [0.6.0] - 2026-10-09
 
 ### Added
