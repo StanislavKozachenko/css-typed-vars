@@ -48,6 +48,44 @@ export const cssVars = {
 - An `@media` theme matches by its prelude, ignoring whitespace and case. Other `@media` blocks are read as before.
 - On the CLI, pass `--theme <name>=<selector>` (repeatable): `--theme dark='[data-theme="dark"]'`.
 
+## Doc comments
+
+A `/** ... */` comment directly before a declaration is carried over to the generated key, so it shows up in editor hover — and `@deprecated` makes the editor strike through every usage:
+
+```css
+:root {
+  /** Page background. Use for full-bleed surfaces only. */
+  --color-bg: #ffffff;
+
+  /**
+   * Legacy link color.
+   * @deprecated use --color-primary
+   */
+  --color-link: #2563eb;
+}
+```
+
+```ts
+export const cssVars = {
+  /**
+   * Page background. Use for full-bleed surfaces only.
+   * @default #ffffff
+   */
+  colorBg: 'var(--color-bg)',
+  /**
+   * Legacy link color.
+   * @default #2563eb
+   * @deprecated use --color-primary
+   */
+  colorLink: 'var(--color-link)',
+} as const;
+```
+
+- Only `/** */` comments count — plain `/* */` comments (like section headers) are ignored, and the comment must be directly before the declaration (only whitespace in between).
+- The text before the first tag becomes the description; `@deprecated [reason]` is kept, other tags are ignored.
+- If a variable has doc comments in several places, the one in a base block (`:root`/`@theme`/`selectors`) wins over one in a [theme](#theme-values) block.
+- In [design tokens](/guide/design-tokens) output they become `$description` and `$deprecated`.
+
 ## @property syntax typing
 
 If a variable is registered via the [CSS Properties and Values API](https://developer.mozilla.org/en-US/docs/Web/CSS/@property), its `syntax` descriptor is picked up automatically — no config needed:

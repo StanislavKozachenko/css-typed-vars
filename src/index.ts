@@ -4,7 +4,7 @@ import { scanCss, scanUsage, collectVarNames } from './scanner.js';
 import { generateCode, generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
-export { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, type PropertyRule, type ThemedDeclarations } from './parser.js';
+export { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, type PropertyRule, type ThemedDeclarations, type VarDoc } from './parser.js';
 export { generateCode, generateJs, generateDeclaration, generateTokens } from './generator.js';
 export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from './scanner.js';
 export type { NamingConvention, GeneratorOptions } from './generator.js';
@@ -82,6 +82,7 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
     properties,
     helpers: options.helpers,
     themes: scanned.themes,
+    docs: scanned.docs,
   };
 
   if (/\.json$/i.test(options.output)) {

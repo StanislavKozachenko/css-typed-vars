@@ -644,6 +644,59 @@ describe('generateTokens (DTCG JSON)', () => {
   });
 });
 
+describe('CSS doc comments (docs option)', () => {
+  const docs = new Map([
+    ['--color-primary', { description: 'Primary brand color.' }],
+    ['--color-link', { description: 'Old link color.\nKept for v1.', deprecated: 'use --color-primary' as const }],
+    ['--c', { deprecated: true as const }],
+  ]);
+  const declarations = new Map([['--color-primary', '#3b82f6'], ['--color-link', 'blue'], ['--c', '3']]);
+
+  it('emits the description first and @deprecated last, in one block', () => {
+    const result = generateCode(['--color-link', '--color-primary', '--c'], { declarations, docs });
+    expect(result).toContain(['  /**', '   * Old link color.', '   * Kept for v1.', '   * @default blue', '   * @deprecated use --color-primary', '   */', "  colorLink: 'var(--color-link)',"].join('\n'));
+    expect(result).toContain(['  /**', '   * Primary brand color.', '   * @default #3b82f6', '   */'].join('\n'));
+    expect(result).toContain(['  /**', '   * @default 3', '   * @deprecated', '   */'].join('\n'));
+  });
+
+  it('uses the single-line form for a lone one-line description', () => {
+    const result = generateCode(['--x'], { docs: new Map([['--x', { description: 'Just text.' }]]) });
+    expect(result).toContain("  /** Just text. */\n  x: 'var(--x)',");
+  });
+
+  it('makes TypeScript show the description and flag deprecated usages', () => {
+    const source = generateCode(['--color-link', '--color-primary'], { declarations, docs }) + 'cssVars.colorLink;\ncssVars.colorPrimary;\n';
+    const files: Record<string, string> = { '/vars.ts': source };
+    const service = ts.createLanguageService({
+      getScriptFileNames: () => Object.keys(files),
+      getScriptVersion: () => '1',
+      getScriptSnapshot: (file) => (files[file] === undefined ? undefined : ts.ScriptSnapshot.fromString(files[file])),
+      getCurrentDirectory: () => '/',
+      getCompilationSettings: () => ({ strict: true, noLib: true }),
+      getDefaultLibFileName: () => '/lib.d.ts',
+      fileExists: (file) => files[file] !== undefined,
+      readFile: (file) => files[file],
+    });
+    const info = service.getQuickInfoAtPosition('/vars.ts', source.lastIndexOf('colorPrimary'));
+    expect(ts.displayPartsToString(info?.documentation)).toBe('Primary brand color.');
+    const deprecated = service.getSuggestionDiagnostics('/vars.ts')
+      .filter((d) => d.reportsDeprecated)
+      .map((d) => source.slice(d.start!, d.start! + d.length!));
+    expect(deprecated).toEqual(['colorLink']);
+  });
+
+  it('carries docs into design tokens as $description / $deprecated', () => {
+    const tokens = JSON.parse(generateTokens(['--color-link', '--color-primary', '--c'], { declarations, docs }));
+    expect(tokens.colorPrimary).toEqual({ $value: '#3b82f6', $description: 'Primary brand color.' });
+    expect(tokens.colorLink.$deprecated).toBe('use --color-primary');
+    expect(tokens.c.$deprecated).toBe(true);
+  });
+
+  it('escapes */ in a description', () => {
+    expect(generateCode(['--x'], { docs: new Map([['--x', { description: 'a */ b' }]]) })).toContain('/** a *\\/ b */');
+  });
+});
+
 describe('computeKeyPath', () => {
   it('returns the flat key when group is off', () => {
     expect(computeKeyPath('--color-primary', 'ds')).toEqual(['dsColorPrimary']);

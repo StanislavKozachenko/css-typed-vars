@@ -78,7 +78,7 @@ export default createUnplugin((options: Options) => {
     return used;
   };
 
-  const generatorOptions = ({ declarations, properties, themes }: ScannedCss): GeneratorOptions => ({
+  const generatorOptions = ({ declarations, properties, themes, docs }: ScannedCss): GeneratorOptions => ({
     prefix: options.prefix,
     naming: options.naming,
     declarations,
@@ -86,6 +86,7 @@ export default createUnplugin((options: Options) => {
     properties,
     helpers: options.helpers,
     themes,
+    docs,
   });
 
   // Sorts the scanned names, warns on key collisions, and applies pruning.

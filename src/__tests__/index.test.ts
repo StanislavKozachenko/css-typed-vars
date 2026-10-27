@@ -240,6 +240,19 @@ describe('generate', () => {
     expect(await checkGenerated({ input, output, group: true })).toBe(false);
   });
 
+  it('carries CSS doc comments into the generated JSDoc', async () => {
+    const input = join(dir, 'docs.css');
+    const output = join(dir, 'docVars.ts');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(input, ':root {\n  /** Page background. */\n  --color-bg: #fff;\n  /** @deprecated use --color-bg */\n  --bg: #fff;\n}\n');
+
+    await generate({ input, output });
+
+    const result = await readFile(output, 'utf8');
+    expect(result).toContain("  /**\n   * @default #fff\n   * @deprecated use --color-bg\n   */\n  bg: 'var(--bg)',");
+    expect(result).toContain("  /**\n   * Page background.\n   * @default #fff\n   */\n  colorBg: 'var(--color-bg)',");
+  });
+
   it('prunes a var with no detected usage and warns about it', async () => {
     const { writeFile, mkdir } = await import('node:fs/promises');
     const input = join(dir, 'prune-test.css');
