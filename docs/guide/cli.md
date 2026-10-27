@@ -95,6 +95,23 @@ export default {
 };
 ```
 
+### Multiple targets
+
+Export an array to generate several files in one run — e.g. one per package in a monorepo, or a TypeScript file plus a design tokens file:
+
+```js
+// css-typed-vars.config.js
+export default [
+  { input: 'packages/ui/src/**/*.css', output: 'packages/ui/src/cssVars.ts' },
+  { input: 'packages/docs/styles/*.css', output: 'packages/docs/cssVars.ts', naming: 'kebab' },
+  { input: 'packages/ui/src/**/*.css', output: 'tokens/ui.json', group: true },
+];
+```
+
+- `--check`, `--prune-check` and `--lint-refs` run for every target and exit `1` if any target fails; each message is tagged with its target's output (`css-typed-vars [packages/ui/src/cssVars.ts]: ...`).
+- `--watch` watches each target's `input` and regenerates only that target on change.
+- Flags that set options (`--input`, `--naming`, `--group`, ...) can't be combined with an array config — set them per target instead. Mode flags (`--watch`, `--check`, ...) work as usual.
+
 ## Grouped output
 
 Passing `--group` (or `group: true`) nests keys under an object named after each variable's first hyphen segment, instead of a flat object:
