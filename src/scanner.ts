@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import fg from 'fast-glob';
-import { parseThemedDeclarations, parsePropertyRules, type PropertyRule } from './parser.js';
+import { parseThemedDeclarations, parsePropertyRules, type PropertyRule, type VarDoc } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
@@ -11,6 +11,8 @@ export interface ScannedCss {
   properties: Map<string, PropertyRule>;
   /** Per theme name (from the `themes` option), the values declared for it. Empty without `themes`. */
   themes: Map<string, Map<string, string>>;
+  /** `/** ... *\/` doc comments placed directly before a declaration. */
+  docs: Map<string, VarDoc>;
 }
 
 // Every var name found, sorted — base declarations plus any declared only
@@ -52,15 +54,17 @@ export async function scanCss(
   const declarations = new Map<string, string>();
   const properties = new Map<string, PropertyRule>();
   const themeValues = new Map(Object.keys(themes).map((theme) => [theme, new Map<string, string>()]));
+  const docs = new Map<string, VarDoc>();
   for (const result of perFile) {
     if (!result) continue;
     for (const [name, value] of result.declarations) declarations.set(name, value);
     for (const [name, rule] of result.properties) properties.set(name, rule);
+    for (const [name, doc] of result.docs) docs.set(name, doc);
     for (const [theme, values] of result.themes) {
       for (const [name, value] of values) themeValues.get(theme)!.set(name, value);
     }
   }
-  return { declarations, properties, themes: themeValues };
+  return { declarations, properties, themes: themeValues, docs };
 }
 
 export async function scanVarDeclarations(

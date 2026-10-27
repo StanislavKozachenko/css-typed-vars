@@ -422,6 +422,44 @@ export const cssVars = {
 - An `@media` theme matches by its prelude, ignoring whitespace and case. Other `@media` blocks are read as before.
 - On the CLI, pass `--theme <name>=<selector>` (repeatable): `--theme dark='[data-theme="dark"]'`.
 
+## Doc comments
+
+A `/** ... */` comment directly before a declaration is carried over to the generated key, so it shows up in editor hover — and `@deprecated` makes the editor strike through every usage:
+
+```css
+:root {
+  /** Page background. Use for full-bleed surfaces only. */
+  --color-bg: #ffffff;
+
+  /**
+   * Legacy link color.
+   * @deprecated use --color-primary
+   */
+  --color-link: #2563eb;
+}
+```
+
+```ts
+export const cssVars = {
+  /**
+   * Page background. Use for full-bleed surfaces only.
+   * @default #ffffff
+   */
+  colorBg: 'var(--color-bg)',
+  /**
+   * Legacy link color.
+   * @default #2563eb
+   * @deprecated use --color-primary
+   */
+  colorLink: 'var(--color-link)',
+} as const;
+```
+
+- Only `/** */` comments count — plain `/* */` comments (like section headers) are ignored, and the comment must be directly before the declaration (only whitespace in between).
+- The text before the first tag becomes the description; `@deprecated [reason]` is kept, other tags are ignored.
+- If a variable has doc comments in several places, the one in a base block (`:root`/`@theme`/`selectors`) wins over one in a [theme](#theme-values) block.
+- In [design tokens](#design-tokens-dtcg) output they become `$description` and `$deprecated`.
+
 ## Design tokens (DTCG)
 
 Point `output` at a `.json` file to get a [W3C Design Tokens](https://www.designtokens.org/tr/drafts/format/) document instead of TypeScript, for Style Dictionary, Tokens Studio and similar tools:
@@ -442,7 +480,7 @@ npx css-typed-vars --input "src/**/*.css" --output tokens/tokens.json --group
 - Keys follow `naming`/`prefix`/`group`, like the generated object.
 - `$value` is the declared value (or the `@property` `initial-value`); `$type` is inferred from the `@property` syntax (`<color>`, `<length>`, `<number>`, `<time>`, ...).
 - A value that's exactly `var(--other)` becomes an alias (`{color.primary}`) when `--other` is in the file.
-- [Theme values](#theme-values) go under `$extensions["css-typed-vars"].themes`.
+- [Theme values](#theme-values) go under `$extensions["css-typed-vars"].themes`; [doc comments](#doc-comments) become `$description`/`$deprecated`.
 - The plugin can write the file too: `cssTypedVars({ input, tokens: 'tokens/tokens.json' })`.
 
 See the [Design tokens guide](https://stanislavkozachenko.github.io/css-typed-vars/guide/design-tokens) for details.

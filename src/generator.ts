@@ -1,4 +1,4 @@
-import type { PropertyRule } from './parser.js';
+import type { PropertyRule, VarDoc } from './parser.js';
 
 export type NamingConvention = 'camelCase' | 'snake' | 'kebab' | 'constant' | 'pascal';
 
@@ -117,7 +117,13 @@ export function warnOnCollisions(varNames: string[], prefix?: string, naming?: N
   }
 }
 
-type EntryMeta = { name: string; value?: string; syntax?: string; themes?: Array<[theme: string, value: string]> };
+type EntryMeta = {
+  name: string;
+  value?: string;
+  syntax?: string;
+  themes?: Array<[theme: string, value: string]>;
+  doc?: VarDoc;
+};
 type Entry = EntryMeta & { key: string };
 
 function entryMeta(name: string, options: GeneratorOptions): EntryMeta {
@@ -131,6 +137,7 @@ function entryMeta(name: string, options: GeneratorOptions): EntryMeta {
     value: options.declarations?.get(name),
     syntax: options.properties?.get(name)?.syntax,
     ...(themes.length > 0 ? { themes } : {}),
+    ...(options.docs?.has(name) ? { doc: options.docs.get(name) } : {}),
   };
 }
 
@@ -182,12 +189,12 @@ function buildGroupedEntries(
 // A value containing `*/` would otherwise prematurely close the comment.
 const escapeComment = (text: string) => text.replace(/\*\//g, '*\\/');
 
-// One tag renders as a single-line `/** @tag ... */`. Several render as one
+// One single-line part renders as `/** ... */`. Anything more renders as one
 // multi-line block: TypeScript's quick info only reads the last JSDoc block
-// before a property, so separate blocks would hide all but the last tag.
+// before a property, so separate blocks would hide all but the last part.
 function renderJsDoc(tags: string[], indent: string): string[] {
   if (tags.length === 0) return [];
-  if (tags.length === 1) return [`${indent}/** ${escapeComment(tags[0])} */`];
+  if (tags.length === 1 && !tags[0].includes('\n')) return [`${indent}/** ${escapeComment(tags[0])} */`];
   const body = tags.flatMap((tag) => escapeComment(tag).split('\n')).map((line) => `${indent} * ${line}`.trimEnd());
   return [`${indent}/**`, ...body, `${indent} */`];
 }
@@ -202,11 +209,16 @@ function unquoteCssString(value: string): string {
   return value;
 }
 
-function entryTags({ value, syntax, themes }: EntryMeta): string[] {
+// The JSDoc parts for an entry: the CSS doc comment's description first (as
+// JSDoc's free text), then the tags.
+function entryTags({ value, syntax, themes, doc }: EntryMeta): string[] {
+  const deprecated = doc?.deprecated;
   return [
+    ...(doc?.description ? [doc.description] : []),
     ...(value ? [`@default ${value}`] : []),
     ...(themes ?? []).map(([theme, themeValue]) => `@theme ${theme} ${themeValue}`),
     ...(syntax ? [`@syntax ${unquoteCssString(syntax)}`] : []),
+    ...(deprecated ? [deprecated === true ? '@deprecated' : `@deprecated ${deprecated}`] : []),
   ];
 }
 
@@ -312,6 +324,8 @@ export interface GeneratorOptions {
   helpers?: boolean;
   /** Per theme name, the values declared for it, emitted as `@theme <name> <value>` JSDoc tags. */
   themes?: Map<string, Map<string, string>>;
+  /** CSS doc comments per var name, emitted as the JSDoc description and `@deprecated` tag. */
+  docs?: Map<string, VarDoc>;
 }
 
 type LegacyArgs = [
@@ -452,6 +466,8 @@ const VAR_REF_RE = /^var\(\s*(--[\w-]+)\s*\)$/;
 interface DesignToken {
   $value: string;
   $type?: string;
+  $description?: string;
+  $deprecated?: string | true;
   $extensions?: { 'css-typed-vars': { themes: Record<string, string> } };
 }
 
@@ -479,6 +495,8 @@ export function generateTokens(varNames: string[], options: GeneratorOptions = {
     const token: DesignToken = { $value: resolve(value) };
     const type = meta.syntax && TOKEN_TYPES[unquoteCssString(meta.syntax).trim()];
     if (type) token.$type = type;
+    if (meta.doc?.description) token.$description = meta.doc.description;
+    if (meta.doc?.deprecated) token.$deprecated = meta.doc.deprecated;
     if (meta.themes) {
       const themes = Object.fromEntries(meta.themes.map(([theme, themeValue]) => [theme, resolve(themeValue)]));
       token.$extensions = { 'css-typed-vars': { themes } };

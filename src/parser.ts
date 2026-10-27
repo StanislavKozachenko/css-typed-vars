@@ -1,3 +1,5 @@
+type Range = [start: number, end: number];
+
 interface QuoteStep {
   consumed: number;
   closed: boolean;
@@ -14,7 +16,21 @@ function stepQuote(text: string, i: number, quote: string): QuoteStep {
   return { consumed: 1, closed: false };
 }
 
+interface StrippedCss {
+  text: string;
+  /** Removed spans, by the stripped position they were removed at, in order. */
+  removed: Array<{ at: number; length: number }>;
+  /** \`[start, end)\` of every block comment in the original text. */
+  comments: Range[];
+}
+
 function stripComments(text: string): string {
+  return stripCommentsWithMap(text).text;
+}
+
+function stripCommentsWithMap(text: string): StrippedCss {
+  const removed: StrippedCss['removed'] = [];
+  const comments: Range[] = [];
   let result = '';
   let quote: string | null = null;
   let urlDepth = 0;
@@ -54,19 +70,22 @@ function stripComments(text: string): string {
         result += char;
         continue;
       }
+      comments.push([i, end + 2]);
+      removed.push({ at: result.length, length: end + 2 - i });
       i = end + 1;
       continue;
     }
 
     if (char === '/' && text[i + 1] === '/' && text[i - 1] !== ':') {
       const nl = text.indexOf('\n', i);
+      removed.push({ at: result.length, length: (nl === -1 ? text.length : nl) - i });
       i = nl === -1 ? text.length - 1 : nl - 1;
       continue;
     }
 
     result += char;
   }
-  return result;
+  return { text: result, removed, comments };
 }
 
 function extractBlock(text: string, start: number): string {
@@ -136,14 +155,16 @@ function extractValue(text: string, start: number): string {
   return text.slice(start, i).trim();
 }
 
-type Range = [start: number, end: number];
+type OnProperty = (name: string, value: string, position: number) => void;
 
-function forEachProperty(block: string, onProperty: (name: string, value: string) => void): void {
+// Calls onProperty for each custom-property declaration in block, with its
+// position in the enclosing text (\`offset\` is where the block starts).
+function forEachProperty(block: string, onProperty: OnProperty, offset = 0): void {
   const masked = maskQuotedContent(block);
   for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
     const name = prop[0];
     const colonIndex = block.indexOf(':', prop.index + name.length);
-    onProperty(name, extractValue(block, colonIndex + 1));
+    onProperty(name, extractValue(block, colonIndex + 1), offset + prop.index);
   }
 }
 
@@ -182,13 +203,13 @@ const BASE_SELECTORS = [':root', '@theme'];
 function scanDeclarations(
   css: string,
   selectors: string[] | undefined,
-  onProperty: (name: string, value: string) => void,
+  onProperty: OnProperty,
   skip: Range[] = [],
   stripped = stripComments(css),
 ): void {
   forEachSelectorBlock(stripped, [...BASE_SELECTORS, ...(selectors ?? [])], (block, [bodyStart]) => {
     if (skip.some(([s, e]) => bodyStart >= s && bodyStart < e)) return;
-    forEachProperty(block, onProperty);
+    forEachProperty(block, onProperty, bodyStart);
   });
 }
 
@@ -228,11 +249,61 @@ function forEachMediaBlock(stripped: string, media: string, onBlock: (block: str
   }
 }
 
+export interface VarDoc {
+  /** Free text of the comment, before any tag. */
+  description?: string;
+  /** `true` for a bare `@deprecated`, or its reason text. */
+  deprecated?: string | true;
+}
+
+// Parses the body of a `/** ... */` comment: leading `*` gutters are dropped,
+// text before the first tag becomes the description, and `@deprecated [reason]`
+// is picked up. Other tags are ignored.
+function parseDocComment(body: string): VarDoc | undefined {
+  const lines = body.split('\n').map((line) => line.replace(/^\s*\*?\s?/, '').trimEnd());
+  const doc: VarDoc = {};
+  const description: string[] = [];
+  let inTags = false;
+  for (const line of lines) {
+    const tag = /^@(\w+)\s*(.*)$/.exec(line.trim());
+    if (tag) {
+      inTags = true;
+      if (tag[1] === 'deprecated') doc.deprecated = tag[2].trim() || true;
+    } else if (!inTags) {
+      description.push(line);
+    }
+  }
+  const text = description.join('\n').trim();
+  if (text) doc.description = text;
+  return doc.description !== undefined || doc.deprecated !== undefined ? doc : undefined;
+}
+
+// Returns a lookup from a position in the comment-stripped text to the
+// `/** ... */` doc comment directly before it in the original css (only
+// whitespace in between), if any.
+function makeDocReader(css: string, stripped: StrippedCss): (strippedPos: number) => VarDoc | undefined {
+  const commentStartByEnd = new Map(stripped.comments.map(([start, end]) => [end, start]));
+  return (strippedPos) => {
+    let rawPos = strippedPos;
+    for (const { at, length } of stripped.removed) {
+      if (at > strippedPos) break;
+      rawPos += length;
+    }
+    let end = rawPos;
+    while (end > 0 && /\s/.test(css[end - 1])) end--;
+    const start = commentStartByEnd.get(end);
+    if (start === undefined || !css.startsWith('/**', start) || end - start <= 4) return undefined;
+    return parseDocComment(css.slice(start + 3, end - 2));
+  };
+}
+
 export interface ThemedDeclarations {
   /** Base values, from `:root`/`@theme`/`selectors` blocks outside any theme block. */
   declarations: Map<string, string>;
   /** Per theme name, the values declared inside that theme's blocks. */
   themes: Map<string, Map<string, string>>;
+  /** `/** ... *\/` doc comments placed directly before a declaration — from a base block, else from a theme block. */
+  docs: Map<string, VarDoc>;
 }
 
 // Like parseVarDeclarations, but also collects values per theme. A theme is a
@@ -245,29 +316,45 @@ export function parseThemedDeclarations(
   selectors: string[] | undefined,
   themes: Record<string, string>,
 ): ThemedDeclarations {
-  const stripped = stripComments(css);
+  const strippedCss = stripCommentsWithMap(css);
+  const stripped = strippedCss.text;
+  const docAt = makeDocReader(css, strippedCss);
+  const themeDocs = new Map<string, VarDoc>();
   const themeValues = new Map<string, Map<string, string>>();
   const skip: Range[] = [];
   for (const [themeName, themeSelector] of Object.entries(themes)) {
     const values = new Map<string, string>();
     themeValues.set(themeName, values);
-    const collect = (block: string) => forEachProperty(block, (name, value) => values.set(name, value));
+    const collect = (block: string, offset: number) =>
+      forEachProperty(block, (name, value, position) => {
+        values.set(name, value);
+        const doc = docAt(position);
+        if (doc) themeDocs.set(name, doc);
+      }, offset);
     const selector = themeSelector.trim();
     if (/^@media\b/i.test(selector)) {
       forEachMediaBlock(stripped, selector, (mediaBlock, range) => {
         skip.push(range);
-        forEachSelectorBlock(mediaBlock, BASE_SELECTORS, collect);
+        forEachSelectorBlock(mediaBlock, BASE_SELECTORS, (block, [innerStart]) => collect(block, range[0] + innerStart));
       });
     } else {
       forEachSelectorBlock(stripped, [selector], (block, range) => {
         skip.push(range);
-        collect(block);
+        collect(block, range[0]);
       });
     }
   }
   const declarations = new Map<string, string>();
-  scanDeclarations(css, selectors, (name, value) => declarations.set(name, value), skip, stripped);
-  return { declarations, themes: themeValues };
+  const docs = new Map<string, VarDoc>();
+  scanDeclarations(css, selectors, (name, value, position) => {
+    declarations.set(name, value);
+    const doc = docAt(position);
+    if (doc) docs.set(name, doc);
+  }, skip, stripped);
+  for (const [name, doc] of themeDocs) {
+    if (!docs.has(name)) docs.set(name, doc);
+  }
+  return { declarations, themes: themeValues, docs };
 }
 
 export interface PropertyRule {

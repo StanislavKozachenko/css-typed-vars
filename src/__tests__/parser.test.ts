@@ -282,6 +282,71 @@ describe('parseThemedDeclarations', () => {
   });
 });
 
+describe('doc comments (parseThemedDeclarations)', () => {
+  const css = `
+    /* Colors — a section header, not a doc comment */
+    :root {
+      /** Primary brand color. */
+      --color-primary: #3b82f6;
+      /**
+       * Old link color.
+       * Kept for v1 consumers.
+       * @deprecated use --color-primary
+       */
+      --color-link: blue;
+      --a: 1px /* inline */ solid; /** Doc for b. */ --b: 2;
+      /** @deprecated */
+      --c: 3;
+      /** Not attached — a declaration sits in between. */
+      --d: 4;
+      --e: 5;
+      /**/ --f: 6;
+    }
+    [data-theme="dark"] { /** Dark-only glow. */ --glow: 2px; /** Theme doc, base wins. */ --color-primary: #000; }
+  `;
+  const { docs, declarations } = parseThemedDeclarations(css, undefined, { dark: '[data-theme="dark"]' });
+
+  it('reads a /** */ comment directly before a declaration as its description', () => {
+    expect(docs.get('--color-primary')).toEqual({ description: 'Primary brand color.' });
+    expect(docs.get('--b')).toEqual({ description: 'Doc for b.' });
+  });
+
+  it('reads multi-line descriptions and @deprecated reasons, dropping * gutters', () => {
+    expect(docs.get('--color-link')).toEqual({ description: 'Old link color.\nKept for v1 consumers.', deprecated: 'use --color-primary' });
+    expect(docs.get('--c')).toEqual({ deprecated: true });
+  });
+
+  it('ignores plain comments, empty /**/ and comments not directly before the declaration', () => {
+    expect(docs.has('--d')).toBe(true);
+    expect(docs.has('--e')).toBe(false);
+    expect(docs.has('--f')).toBe(false);
+    expect([...docs.keys()]).not.toContain('--a');
+  });
+
+  it('falls back to a theme block doc, preferring the base one', () => {
+    expect(docs.get('--glow')).toEqual({ description: 'Dark-only glow.' });
+    expect(docs.get('--color-primary')?.description).toBe('Primary brand color.');
+  });
+
+  it('leaves declared values unchanged', () => {
+    expect(declarations.get('--a')).toBe(parseVarDeclarations(css).get('--a'));
+    expect(declarations.get('--color-link')).toBe('blue');
+  });
+
+  it('finds doc comments inside an @media theme block', () => {
+    const media = '@media (prefers-color-scheme: dark) { :root { /** In media. */ --m: 1; } }';
+    expect(parseThemedDeclarations(media, undefined, { dark: '@media (prefers-color-scheme: dark)' }).docs.get('--m'))
+      .toEqual({ description: 'In media.' });
+  });
+
+  it('is not fooled by /* inside a string or an earlier comment', () => {
+    const tricky = ":root { --s: '/* not a comment */'; /* see a/*b */ /** Real doc. */ --t: 1; }";
+    const result = parseThemedDeclarations(tricky, undefined, {});
+    expect(result.docs.get('--t')).toEqual({ description: 'Real doc.' });
+    expect(result.declarations.get('--s')).toBe("'/* not a comment */'");
+  });
+});
+
 describe('parsePropertyRules', () => {
   it('parses syntax, inherits, and initial-value descriptors', () => {
     const css = `@property --color-primary {

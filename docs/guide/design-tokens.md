@@ -57,6 +57,7 @@ With `themes: { dark: '[data-theme="dark"]' }`, this produces:
 - **`$type`** is inferred from the `@property` syntax where DTCG has a direct counterpart: `<color>` → `color`, `<length>`/`<length-percentage>` → `dimension`, `<number>`/`<integer>` → `number`, `<time>` → `duration`. Otherwise it's omitted.
 - **Aliases**: a value that's exactly `var(--other)` becomes `{path.to.other}` when `--other` is a token in the same file. Any other value, including `var()` references to variables outside the file, is kept as the raw CSS string.
 - **Themes**: values from the [`themes`](/guide/supported-formats#theme-values) option go under `$extensions["css-typed-vars"].themes`, with the same alias handling.
+- **Docs**: a [doc comment](/guide/supported-formats#doc-comments) becomes `$description`, and its `@deprecated` tag becomes `$deprecated` (`true`, or the reason text).
 
 Values are written as they appear in CSS. DTCG's structured value formats (e.g. color objects) aren't produced, so `$value` stays a string like `#3b82f6` or `8px`, which most tools accept.
 
