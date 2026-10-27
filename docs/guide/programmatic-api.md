@@ -12,7 +12,7 @@ await generate({
   selectors: ['.dark', '[data-theme="dark"]'],
   themes: { dark: '[data-theme="dark"]' }, // per-theme values as @theme JSDoc tags — see Supported formats
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary — see CLI docs
-  helpers: false,            // also emit getCssVar/setCssVar runtime helpers
+  helpers: false,            // also emit getCssVar/setCssVar/withFallback helpers
   prune: false,              // drop vars with no detected cssVars.<key> usage — see CLI docs
   usage: 'src/**/*.{ts,tsx}',
 });

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import ts from 'typescript';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { generateCode, generateDeclaration, generateJs, generateTokens, findKeyCollisions, computeKey, computeKeyPath } from '../generator.js';
 import type { PropertyRule } from '../parser.js';
 
@@ -529,6 +532,42 @@ describe('runtime helpers (helpers: true)', () => {
     expect(getPropertyValue).toHaveBeenCalledWith('--color-primary');
     setCssVar(cssVars.colorPrimary, 'blue');
     expect(setProperty).toHaveBeenCalledWith('--color-primary', 'blue');
+  });
+
+  it('builds var() fallbacks at runtime', () => {
+    const js = generateJs(['--color-primary', '--gap'], { helpers: true });
+    const { withFallback, cssVars } = new Function(js.replace(/^export /gm, '') + '\nreturn { withFallback, cssVars };')();
+    expect(withFallback(cssVars.colorPrimary, '#fff')).toBe('var(--color-primary, #fff)');
+    expect(withFallback(cssVars.gap, 0)).toBe('var(--gap, 0)');
+    expect(withFallback(cssVars.gap, cssVars.colorPrimary)).toBe('var(--gap, var(--color-primary))');
+  });
+
+  it('emits withFallback in TS, JS and .d.ts output', () => {
+    const names = ['--color-primary'];
+    expect(generateCode(names, { helpers: true })).toContain('export function withFallback<R extends CssVarRef, F extends string | number>(ref: R, fallback: F): CssVarWithFallback<R, F> {');
+    expect(generateJs(names, { helpers: true })).toContain('export function withFallback(ref, fallback) {');
+    expect(generateDeclaration(names, { helpers: true })).toContain('export declare function withFallback<R extends CssVarRef, F extends string | number>(ref: R, fallback: F): CssVarWithFallback<R, F>;');
+  });
+
+  it('types the withFallback result as a precise literal', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'css-typed-vars-fallback-'));
+    try {
+      writeFileSync(join(dir, 'vars.ts'), generateCode(['--color-primary', '--gap'], { helpers: true, group: true }));
+      writeFileSync(join(dir, 'use.ts'), [
+        "import { cssVars, withFallback } from './vars';",
+        "export const a: 'var(--color-primary, #fff)' = withFallback(cssVars.color.primary, '#fff');",
+        "export const b: 'var(--gap, 0)' = withFallback(cssVars.gap, 0);",
+        "export const c: 'var(--gap, var(--color-primary))' = withFallback(cssVars.gap, cssVars.color.primary);",
+        "export const wrong: 'var(--gap, 1)' = withFallback(cssVars.gap, 2);",
+        '',
+      ].join('\n'));
+      const program = ts.createProgram([join(dir, 'use.ts')], { strict: true, noEmit: true, types: [], target: ts.ScriptTarget.ES2020, lib: ['lib.es2020.d.ts', 'lib.dom.d.ts'] });
+      const errors = ts.getPreEmitDiagnostics(program).map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain(`Type '"var(--gap, 2)"' is not assignable to type '"var(--gap, 1)"'`);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
 });
 

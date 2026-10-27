@@ -372,7 +372,8 @@ function renderRefType(varNames: string[], options: GeneratorOptions): string {
   return `export type CssVarRef = ${refs.length > 0 ? refs.join(' | ') : 'never'};`;
 }
 
-// `ref.slice(4, -1)` turns `var(--name)` back into `--name`.
+// `ref.slice(4, -1)` turns `var(--name)` back into `--name`; `withFallback`
+// inserts `, <fallback>` before the closing paren, keeping a literal type.
 const HELPERS_TS = [
   'export function getCssVar(ref: CssVarRef, el: Element = document.documentElement): string {',
   '  return getComputedStyle(el).getPropertyValue(ref.slice(4, -1)).trim();',
@@ -380,6 +381,12 @@ const HELPERS_TS = [
   '',
   'export function setCssVar(ref: CssVarRef, value: string, el: HTMLElement = document.documentElement): void {',
   '  el.style.setProperty(ref.slice(4, -1), value);',
+  '}',
+  '',
+  'export type CssVarWithFallback<R extends CssVarRef, F extends string | number> = R extends `var(${infer N})` ? `var(${N}, ${F})` : never;',
+  '',
+  'export function withFallback<R extends CssVarRef, F extends string | number>(ref: R, fallback: F): CssVarWithFallback<R, F> {',
+  '  return `${ref.slice(0, -1)}, ${fallback})` as CssVarWithFallback<R, F>;',
   '}',
 ];
 
@@ -391,11 +398,17 @@ const HELPERS_JS = [
   'export function setCssVar(ref, value, el = document.documentElement) {',
   '  el.style.setProperty(ref.slice(4, -1), value);',
   '}',
+  '',
+  'export function withFallback(ref, fallback) {',
+  '  return `${ref.slice(0, -1)}, ${fallback})`;',
+  '}',
 ];
 
 const HELPERS_DTS = [
   'export declare function getCssVar(ref: CssVarRef, el?: Element): string;',
   'export declare function setCssVar(ref: CssVarRef, value: string, el?: HTMLElement): void;',
+  'export type CssVarWithFallback<R extends CssVarRef, F extends string | number> = R extends `var(${infer N})` ? `var(${N}, ${F})` : never;',
+  'export declare function withFallback<R extends CssVarRef, F extends string | number>(ref: R, fallback: F): CssVarWithFallback<R, F>;',
 ];
 
 export function generateCode(varNames: string[], options?: GeneratorOptions): string;

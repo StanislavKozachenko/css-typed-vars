@@ -136,7 +136,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--theme` | Named theme block, kept out of the default value and emitted as `@theme <name> <value>` JSDoc tags (repeatable: `--theme dark='[data-theme="dark"]' --theme contrast='@media (prefers-contrast: more)'`) — see [Theme values](#theme-values) |
 | `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
-| `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)` runtime helpers — see [Usage](#usage). |
+| `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)`/`withFallback(ref, fallback)` helpers — see [Usage](#usage). |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). With `--group`, matches `cssVars.<group>.<key>` and keeps a whole group referenced as `cssVars.<group>`. |
 | `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Useful in CI. |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
@@ -280,7 +280,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `themes` | `Record<string, string>` | — | Theme name → selector or `@media` prelude; values become `@theme` JSDoc tags — see [Theme values](#theme-values) |
 | `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary`. Can't be combined with `prefix` |
-| `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers from `css-typed-vars/vars` |
+| `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback` helpers from `css-typed-vars/vars` |
 | `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>` with `group`) usage. Requires `usage` |
 | `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
 | `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
@@ -338,7 +338,17 @@ setCssVar(cssVars.colorPrimary, '#ef4444');      // inline style on <html>
 setCssVar(cssVars.spacingMd, '12px', cardEl);    // or on a specific element
 ```
 
-The helpers take a `cssVars` value (typed as `CssVarRef`, the union of every generated `'var(--name)'`), so they work the same with any `naming`, `prefix` or `group`. They use `getComputedStyle`/`style.setProperty`, so call them in the browser only, and the TS output needs the `DOM` lib in your `tsconfig`.
+The helpers take a `cssVars` value (typed as `CssVarRef`, the union of every generated `'var(--name)'`), so they work the same with any `naming`, `prefix` or `group`. `getCssVar`/`setCssVar` use `getComputedStyle`/`style.setProperty`, so call them in the browser only, and the TS output needs the `DOM` lib in your `tsconfig`.
+
+`withFallback` builds a `var()` with a fallback value, typed as the exact resulting string — handy in style objects and CSS-in-JS. Unlike the two above, it's a pure string helper and works anywhere, including on the server:
+
+```ts
+import { cssVars, withFallback } from './cssVars';
+
+withFallback(cssVars.colorPrimary, '#3b82f6');      // 'var(--color-primary, #3b82f6)'
+withFallback(cssVars.spacingMd, 0);                 // 'var(--spacing-md, 0)'
+withFallback(cssVars.colorLink, cssVars.colorPrimary); // 'var(--color-link, var(--color-primary))'
+```
 
 ---
 
@@ -356,7 +366,7 @@ await generate({
   selectors: ['.dark', '[data-theme="dark"]'],
   themes: { dark: '[data-theme="dark"]' }, // per-theme values as @theme JSDoc tags
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary
-  helpers: false,            // also emit getCssVar/setCssVar runtime helpers
+  helpers: false,            // also emit getCssVar/setCssVar/withFallback helpers
   prune: false,              // drop vars with no detected cssVars.<key> usage (requires `usage`)
   usage: 'src/**/*.{ts,tsx}',
 });
