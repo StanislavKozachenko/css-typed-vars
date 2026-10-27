@@ -49,4 +49,14 @@ setCssVar(cssVars.colorPrimary, '#ef4444');      // inline style on <html>
 setCssVar(cssVars.spacingMd, '12px', cardEl);    // or on a specific element
 ```
 
-The helpers take a `cssVars` value (typed as `CssVarRef`, the union of every generated `'var(--name)'`), so they work the same with any `naming`, `prefix` or `group`. They use `getComputedStyle`/`style.setProperty`, so call them in the browser only, and the TS output needs the `DOM` lib in your `tsconfig`.
+The helpers take a `cssVars` value (typed as `CssVarRef`, the union of every generated `'var(--name)'`), so they work the same with any `naming`, `prefix` or `group`. `getCssVar`/`setCssVar` use `getComputedStyle`/`style.setProperty`, so call them in the browser only, and the TS output needs the `DOM` lib in your `tsconfig`.
+
+`withFallback` builds a `var()` with a fallback value, typed as the exact resulting string — handy in style objects and CSS-in-JS. Unlike the two above, it's a pure string helper and works anywhere, including on the server:
+
+```ts
+import { cssVars, withFallback } from './cssVars';
+
+withFallback(cssVars.colorPrimary, '#3b82f6');      // 'var(--color-primary, #3b82f6)'
+withFallback(cssVars.spacingMd, 0);                 // 'var(--spacing-md, 0)'
+withFallback(cssVars.colorLink, cssVars.colorPrimary); // 'var(--color-link, var(--color-primary))'
+```

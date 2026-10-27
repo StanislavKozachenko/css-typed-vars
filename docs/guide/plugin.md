@@ -95,7 +95,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the [CL
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `themes` | `Record<string, string>` | — | Theme name → selector or `@media` prelude — see [Theme values](/guide/supported-formats#theme-values) |
 | `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary` — see [Grouped output](/guide/cli#grouped-output). Can't be combined with `prefix` |
-| `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers from `css-typed-vars/vars` — see [Usage examples](/guide/usage#reading-and-writing-at-runtime) |
+| `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback` helpers from `css-typed-vars/vars` — see [Usage examples](/guide/usage#reading-and-writing-at-runtime) |
 | `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` usage — see [Pruning unused variables](/guide/cli#pruning-unused-variables). Requires `usage` |
 | `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
 | `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
