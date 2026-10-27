@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import fg from 'fast-glob';
-import { parseThemedDeclarations, parsePropertyRules, type PropertyRule, type VarDoc } from './parser.js';
+import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
@@ -137,6 +137,40 @@ export async function scanUsage(patterns: string | string[], exclude?: string | 
   );
   for (const text of texts) extractUsage(text, usage);
   return usage;
+}
+
+
+export interface FileReference extends VarReference {
+  file: string;
+}
+
+// Reads every matched CSS file once, returning all `var()` references (with
+// their file) and every custom property name declared across the files.
+export async function scanReferences(
+  patterns: string | string[],
+  exclude?: string | string[],
+): Promise<{ references: FileReference[]; declared: Set<string> }> {
+  const normalized = normalizePatterns(patterns);
+  const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
+  const files = (await fg(normalized, { absolute: true, ignore: normalizedExclude })).sort();
+  const perFile = await Promise.all(
+    files.map(async (file) => {
+      try {
+        return { file, css: await readFile(file, 'utf8') };
+      } catch (err) {
+        console.warn(`css-typed-vars: skipping "${file}": ${(err as Error).message}`);
+        return null;
+      }
+    }),
+  );
+  const references: FileReference[] = [];
+  const declared = new Set<string>();
+  for (const result of perFile) {
+    if (!result) continue;
+    for (const ref of parseVarReferences(result.css)) references.push({ ...ref, file: result.file });
+    for (const name of parseDeclaredNames(result.css)) declared.add(name);
+  }
+  return { references, declared };
 }
 
 // The set of first-level keys found to be in use.

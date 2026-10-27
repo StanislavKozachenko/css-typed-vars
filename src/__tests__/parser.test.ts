@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations } from '../parser.js';
+import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, parseVarReferences, parseDeclaredNames } from '../parser.js';
 
 describe('parseVarNames', () => {
   it('extracts custom properties from :root block', () => {
@@ -344,6 +344,38 @@ describe('doc comments (parseThemedDeclarations)', () => {
     const result = parseThemedDeclarations(tricky, undefined, {});
     expect(result.docs.get('--t')).toEqual({ description: 'Real doc.' });
     expect(result.declarations.get('--s')).toBe("'/* not a comment */'");
+  });
+});
+
+describe('parseVarReferences', () => {
+  it('finds references with their line, column and fallback flag', () => {
+    const css = '.a {\n  color: var(--color-primary);\n  margin: var( --gap , 4px) var(--x,var(--y));\n}';
+    expect(parseVarReferences(css)).toEqual([
+      { name: '--color-primary', hasFallback: false, line: 2, column: 10 },
+      { name: '--gap', hasFallback: true, line: 3, column: 11 },
+      { name: '--x', hasFallback: true, line: 3, column: 29 },
+      { name: '--y', hasFallback: false, line: 3, column: 37 },
+    ]);
+  });
+
+  it('skips references inside comments and strings, keeping original positions', () => {
+    const css = "/* var(--in-comment) */\n.a { content: 'var(--in-string)'; /* x */ color: VAR(--real); }";
+    expect(parseVarReferences(css)).toEqual([{ name: '--real', hasFallback: false, line: 2, column: 50 }]);
+  });
+
+  it('ignores SCSS/Less interpolated names', () => {
+    expect(parseVarReferences('.a { color: var(--#{$name}); b: var(--@{name}); }')).toEqual([]);
+  });
+});
+
+describe('parseDeclaredNames', () => {
+  it('collects declarations in any block plus @property names', () => {
+    const css = ':root { --a: 1; } .card { --b: var(--a); } @property --c { syntax: "<color>"; inherits: false; initial-value: red; } @media (x) { .d { --e:2 } }';
+    expect([...parseDeclaredNames(css)].sort()).toEqual(['--a', '--b', '--c', '--e']);
+  });
+
+  it('ignores names inside comments and strings', () => {
+    expect([...parseDeclaredNames(":root { /* --a: 1; */ content: '--b: 2'; --c: 3; }")]).toEqual(['--c']);
   });
 });
 

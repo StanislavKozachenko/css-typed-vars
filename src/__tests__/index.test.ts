@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { generate, checkGenerated, findUnusedVars } from '../index.js';
+import { generate, checkGenerated, findUnusedVars, findUndefinedRefs } from '../index.js';
 
 let dir: string;
 
@@ -375,6 +375,31 @@ describe('findUnusedVars', () => {
   it('throws when called without usage', async () => {
     const input = join(dir, 'unused-no-usage.css');
     await expect(findUnusedVars({ input })).rejects.toThrow(/requires "usage"/);
+  });
+});
+
+describe('findUndefinedRefs', () => {
+  it('reports references to undeclared vars across files, flagging fallbacks', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const cssDir = join(dir, 'refs');
+    await mkdir(cssDir, { recursive: true });
+    await writeFile(join(cssDir, 'a.css'), ':root { --color-primary: red; }\n@property --radius { syntax: "<length>"; inherits: false; initial-value: 0; }');
+    await writeFile(join(cssDir, 'b.css'), '.btn {\n  --btn-pad: 4px;\n  color: var(--color-primary);\n  padding: var(--btn-pad) var(--typo);\n  border-radius: var(--radius);\n  gap: var(--maybe, 2px);\n  z-index: var(--tw-z);\n}');
+
+    const refs = await findUndefinedRefs({ input: `${cssDir}/*.css`, refsIgnore: ['--tw-*'] });
+    expect(refs.map(({ name, hasFallback, line, column }) => ({ name, hasFallback, line, column }))).toEqual([
+      { name: '--typo', hasFallback: false, line: 4, column: 27 },
+      { name: '--maybe', hasFallback: true, line: 6, column: 8 },
+    ]);
+    expect(refs[0].file.replace(/\\/g, '/')).toMatch(/refs\/b\.css$/);
+  });
+
+  it('returns nothing when every reference is declared', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const cssDir = join(dir, 'refs-ok');
+    await mkdir(cssDir, { recursive: true });
+    await writeFile(join(cssDir, 'a.css'), ':root { --a: 1px; --b: var(--a); }');
+    expect(await findUndefinedRefs({ input: `${cssDir}/*.css` })).toEqual([]);
   });
 });
 

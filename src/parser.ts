@@ -20,7 +20,7 @@ interface StrippedCss {
   text: string;
   /** Removed spans, by the stripped position they were removed at, in order. */
   removed: Array<{ at: number; length: number }>;
-  /** \`[start, end)\` of every block comment in the original text. */
+  /** `[start, end)` of every block comment in the original text. */
   comments: Range[];
 }
 
@@ -158,7 +158,7 @@ function extractValue(text: string, start: number): string {
 type OnProperty = (name: string, value: string, position: number) => void;
 
 // Calls onProperty for each custom-property declaration in block, with its
-// position in the enclosing text (\`offset\` is where the block starts).
+// position in the enclosing text (`offset` is where the block starts).
 function forEachProperty(block: string, onProperty: OnProperty, offset = 0): void {
   const masked = maskQuotedContent(block);
   for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
@@ -284,12 +284,7 @@ function parseDocComment(body: string): VarDoc | undefined {
 function makeDocReader(css: string, stripped: StrippedCss): (strippedPos: number) => VarDoc | undefined {
   const commentStartByEnd = new Map(stripped.comments.map(([start, end]) => [end, start]));
   return (strippedPos) => {
-    let rawPos = strippedPos;
-    for (const { at, length } of stripped.removed) {
-      if (at > strippedPos) break;
-      rawPos += length;
-    }
-    let end = rawPos;
+    let end = toRawPosition(stripped, strippedPos);
     while (end > 0 && /\s/.test(css[end - 1])) end--;
     const start = commentStartByEnd.get(end);
     if (start === undefined || !css.startsWith('/**', start) || end - start <= 4) return undefined;
@@ -395,4 +390,50 @@ export function parsePropertyRules(css: string): Map<string, PropertyRule> {
     openRegex.lastIndex = start + block.length + 1;
   }
   return rules;
+}
+
+
+// Maps a position in comment-stripped text back to the original text.
+function toRawPosition(stripped: StrippedCss, strippedPos: number): number {
+  let rawPos = strippedPos;
+  for (const { at, length } of stripped.removed) {
+    if (at > strippedPos) break;
+    rawPos += length;
+  }
+  return rawPos;
+}
+
+export interface VarReference {
+  name: string;
+  /** Whether the reference has a fallback, e.g. `var(--x, red)`. */
+  hasFallback: boolean;
+  /** 1-based line and column of `var(` in the original css. */
+  line: number;
+  column: number;
+}
+
+// Every `var(--name)` reference in css, outside comments and quoted strings.
+export function parseVarReferences(css: string): VarReference[] {
+  const stripped = stripCommentsWithMap(css);
+  const masked = maskQuotedContent(stripped.text);
+  const lineStarts = [0];
+  for (let i = 0; i < css.length; i++) if (css[i] === '\n') lineStarts.push(i + 1);
+  const refs: VarReference[] = [];
+  for (const match of masked.matchAll(/\bvar\(\s*(--[\w-]+)\s*(,)?/gi)) {
+    const rawPos = toRawPosition(stripped, match.index);
+    let line = lineStarts.length - 1;
+    while (lineStarts[line] > rawPos) line--;
+    refs.push({ name: match[1], hasFallback: match[2] === ',', line: line + 1, column: rawPos - lineStarts[line] + 1 });
+  }
+  return refs;
+}
+
+// Every custom property name declared anywhere in css — in any block, not just
+// the scanned selectors — plus every `@property`-registered name.
+export function parseDeclaredNames(css: string): Set<string> {
+  const masked = maskQuotedContent(stripComments(css));
+  const names = new Set<string>();
+  for (const match of masked.matchAll(/(?<![\w-])(--[\w-]+)\s*:/g)) names.add(match[1]);
+  for (const match of masked.matchAll(/@property\s+(--[\w-]+)/g)) names.add(match[1]);
+  return names;
 }

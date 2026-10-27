@@ -139,6 +139,8 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)`/`withFallback(ref, fallback)` helpers — see [Usage](#usage). |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). With `--group`, matches `cssVars.<group>.<key>` and keeps a whole group referenced as `cssVars.<group>`. |
 | `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Useful in CI. |
+| `--lint-refs` | Report `var(--name)` references to variables not declared anywhere in the input; exits 1 if any (without a fallback) are found — see [Linting var() references](#linting-var-references) |
+| `--refs-ignore` | Name or `--prefix-*` pattern for `--lint-refs` to skip (repeatable) |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
 | `--usage-exclude` | Glob of source files to exclude from the usage scan (repeatable) |
 | `--watch` | Watch for file changes and regenerate |
@@ -155,6 +157,27 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 When in doubt, use `--prune-check` in CI to review what it would remove before turning on `--prune` for real.
 
 CLI flags override values from the config file.
+
+### Linting var() references
+
+`--lint-refs` checks the input CSS for `var(--name)` references to variables that aren't declared anywhere in it — typos, or variables that were renamed or removed. No output file is needed:
+
+```sh
+npx css-typed-vars --input "src/**/*.css" --lint-refs
+```
+
+```
+css-typed-vars: 1 reference(s) to undeclared variables with a fallback:
+  src/card.css:12:9  var(--card-gap, …)
+css-typed-vars: 2 reference(s) to undeclared variables:
+  src/button.css:4:10  var(--colr-primary)
+  src/button.css:9:18  var(--radius-xl)
+```
+
+- A variable counts as declared if any input file declares it in any block (not just `:root`), or registers it with `@property`.
+- References without a fallback are errors and make the command exit `1`. References with a fallback (`var(--x, 4px)`) still work at runtime, so they're only reported as warnings.
+- References inside comments and strings are ignored; positions point to the original file.
+- Variables set from JavaScript or defined by another stylesheet you don't scan can be skipped with `--refs-ignore` (repeatable, a trailing `*` matches a prefix): `--refs-ignore "--tw-*" --refs-ignore --app-height`, or `refsIgnore` in the config file.
 
 ### Config file
 
@@ -178,6 +201,7 @@ export default {
   themes: { dark: '[data-theme="dark"]' },
   group: false,
   helpers: false,
+  refsIgnore: ['--tw-*'],
   prune: false,
   usage: 'src/**/*.{ts,tsx}',
 };
@@ -373,6 +397,8 @@ await generate({
 ```
 
 `checkGenerated(options)` takes the same options and returns `Promise<boolean>` — `true` if the existing output already matches what would be generated, without writing anything. Same thing `--check` does on the CLI.
+
+`findUndefinedRefs({ input, exclude?, refsIgnore? })` returns `Promise<FileReference[]>` — each undeclared `var()` reference with its `file`, `line`, `column` and `hasFallback`. Same thing `--lint-refs` does on the CLI.
 
 `findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`group`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. Same thing `--prune-check` does on the CLI.
 

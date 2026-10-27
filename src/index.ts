@@ -1,12 +1,12 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { scanCss, scanUsage, collectVarNames } from './scanner.js';
+import { scanCss, scanUsage, collectVarNames, scanReferences, type FileReference } from './scanner.js';
 import { generateCode, generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
-export { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, type PropertyRule, type ThemedDeclarations, type VarDoc } from './parser.js';
+export { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, type PropertyRule, type ThemedDeclarations, type VarDoc, parseVarReferences, parseDeclaredNames, type VarReference } from './parser.js';
 export { generateCode, generateJs, generateDeclaration, generateTokens } from './generator.js';
-export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys } from './scanner.js';
+export { scanVarNames, scanVarDeclarations, scanCss, scanUsedKeys, scanReferences, type FileReference } from './scanner.js';
 export type { NamingConvention, GeneratorOptions } from './generator.js';
 
 export interface GenerateOptions {
@@ -31,6 +31,8 @@ export interface GenerateOptions {
   usageExclude?: string | string[];
   /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
   helpers?: boolean;
+  /** Names (or `--prefix-*` patterns) that `findUndefinedRefs` shouldn't report, e.g. vars set from JS. */
+  refsIgnore?: string[];
 }
 
 // Reports CSS variables with no detected `cssVars.<key>` usage in the given
@@ -45,6 +47,22 @@ export async function findUnusedVars(
   ]);
   const names = collectVarNames(scanned);
   return partitionUnused(names, usage, options).unused;
+}
+
+// A pattern ending in `*` matches by prefix (`--tw-*`); anything else exactly.
+function matchesIgnore(name: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => (pattern.endsWith('*') ? name.startsWith(pattern.slice(0, -1)) : name === pattern));
+}
+
+// Finds `var(--name)` references in the input CSS whose `--name` isn't declared
+// anywhere in the input (any block, or an `@property` rule). References with a
+// fallback are included too, flagged with `hasFallback`. Backs `--lint-refs`.
+export async function findUndefinedRefs(
+  options: Pick<GenerateOptions, 'input' | 'exclude' | 'refsIgnore'>,
+): Promise<FileReference[]> {
+  const { references, declared } = await scanReferences(options.input, options.exclude);
+  const ignore = options.refsIgnore ?? [];
+  return references.filter((ref) => !declared.has(ref.name) && !matchesIgnore(ref.name, ignore));
 }
 
 interface ComputedOutput {
