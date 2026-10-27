@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
-import { generate, checkGenerated, findUnusedVars } from './index.js';
+import { generate, checkGenerated, findUnusedVars, findUndefinedRefs, type FileReference } from './index.js';
 import { VALID_NAMINGS, type NamingConvention } from './generator.js';
 
 const args = process.argv.slice(2).flatMap((arg) => {
@@ -26,6 +26,7 @@ const checkMode = args.includes('--check');
 const groupFlag = args.includes('--group');
 const pruneFlag = args.includes('--prune');
 const pruneCheckMode = args.includes('--prune-check');
+const lintRefsMode = args.includes('--lint-refs');
 const helpersFlag = args.includes('--helpers');
 
 interface Config {
@@ -41,6 +42,7 @@ interface Config {
   usage?: string | string[];
   usageExclude?: string | string[];
   helpers?: boolean;
+  refsIgnore?: string[];
 }
 
 async function loadConfig(): Promise<Config> {
@@ -127,9 +129,37 @@ async function main(): Promise<void> {
   const usageExcludeArgs = getArgs('--usage-exclude');
   const usageExclude = usageExcludeArgs.length > 0 ? usageExcludeArgs : config.usageExclude;
   const helpers = helpersFlag || config.helpers;
+  const refsIgnoreArgs = getArgs('--refs-ignore');
+  const refsIgnore = refsIgnoreArgs.length > 0 ? refsIgnoreArgs : config.refsIgnore;
+
+  if (lintRefsMode) {
+    if (!input) {
+      console.error('css-typed-vars: --lint-refs requires --input <glob> (or "input" in the config file).');
+      process.exit(1);
+    }
+    if (watchMode || checkMode || pruneCheckMode) {
+      console.error('css-typed-vars: --lint-refs cannot be combined with --watch, --check or --prune-check.');
+      process.exit(1);
+    }
+    const refs = await findUndefinedRefs({ input, exclude, refsIgnore });
+    const format = (ref: FileReference) => `  ${relative(process.cwd(), ref.file).replace(/\\/g, '/')}:${ref.line}:${ref.column}  var(${ref.name}${ref.hasFallback ? ', …' : ''})`;
+    const errors = refs.filter((ref) => !ref.hasFallback);
+    const warnings = refs.filter((ref) => ref.hasFallback);
+    if (warnings.length > 0) {
+      console.warn(`css-typed-vars: ${warnings.length} reference(s) to undeclared variables with a fallback:`);
+      for (const ref of warnings) console.warn(format(ref));
+    }
+    if (errors.length > 0) {
+      console.error(`css-typed-vars: ${errors.length} reference(s) to undeclared variables:`);
+      for (const ref of errors) console.error(format(ref));
+      process.exit(1);
+    }
+    console.log('css-typed-vars: no references to undeclared variables.');
+    return;
+  }
 
   if (!input || !output) {
-    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--helpers] [--theme <name>=<selector>] [--prune --usage <glob>] [--prune-check --usage <glob>]');
+    console.error('Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--helpers] [--theme <name>=<selector>] [--prune --usage <glob>] [--prune-check --usage <glob>] [--lint-refs]');
     console.error('Or add a css-typed-vars.config.js file with input and output fields.');
     process.exit(1);
   }

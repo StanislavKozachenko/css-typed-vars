@@ -52,6 +52,19 @@ if (unused.length > 0) {
 }
 ```
 
+## findUndefinedRefs
+
+`findUndefinedRefs({ input, exclude?, refsIgnore? })` returns `Promise<FileReference[]>` — every `var(--name)` reference in the input whose `--name` isn't declared anywhere in it, with `file`, `line`, `column` and `hasFallback`. This is what `--lint-refs` does on the CLI — see [Linting var() references](/guide/cli#linting-var-references).
+
+```ts
+import { findUndefinedRefs } from 'css-typed-vars';
+
+const refs = await findUndefinedRefs({ input: 'src/**/*.css', refsIgnore: ['--tw-*'] });
+for (const ref of refs.filter((r) => !r.hasFallback)) {
+  console.log(`${ref.file}:${ref.line}:${ref.column} var(${ref.name})`);
+}
+```
+
 ## Lower-level exports
 
 ```ts
@@ -64,6 +77,9 @@ import {
   scanVarDeclarations,   // (patterns, exclude?, selectors?) => Promise<Map<string, string>>
   scanCss,               // (patterns, exclude?, selectors?, themes?) => Promise<{ declarations, properties, themes }>
   scanUsedKeys,          // (patterns, exclude?) => Promise<Set<string>>
+  scanReferences,        // (patterns, exclude?) => Promise<{ references, declared }>
+  parseVarReferences,    // (css) => VarReference[]
+  parseDeclaredNames,    // (css) => Set<string>
   generateCode,          // (varNames, options?: GeneratorOptions) => string
   generateJs,
   generateDeclaration,
