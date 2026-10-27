@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import ts from 'typescript';
 import { generateCode, generateDeclaration, generateJs, generateTokens, findKeyCollisions, computeKey, computeKeyPath } from '../generator.js';
 import type { PropertyRule } from '../parser.js';
 
@@ -542,17 +543,19 @@ describe('theme values (themes option)', () => {
   it('emits one @theme tag per theme value, under @default', () => {
     const result = generateCode(['--color-bg', '--dark-only'], { declarations, themes });
     expect(result).toContain([
-      '  /** @default #fff */',
-      '  /** @theme dark #000 */',
-      '  /** @theme hc #ff0 */',
+      '  /**',
+      '   * @default #fff',
+      '   * @theme dark #000',
+      '   * @theme hc #ff0',
+      '   */',
       "  colorBg: 'var(--color-bg)',",
     ].join('\n'));
     expect(result).toContain("  /** @theme dark 1px */\n  darkOnly: 'var(--dark-only)',");
   });
 
   it('emits theme tags in grouped and declaration output too', () => {
-    expect(generateCode(['--color-bg'], { declarations, themes, group: true })).toContain('    /** @theme dark #000 */\n    /** @theme hc #ff0 */\n    bg:');
-    expect(generateDeclaration(['--color-bg'], { declarations, themes })).toContain('  /** @theme hc #ff0 */');
+    expect(generateCode(['--color-bg'], { declarations, themes, group: true })).toContain('     * @theme dark #000\n     * @theme hc #ff0\n     */\n    bg:');
+    expect(generateDeclaration(['--color-bg'], { declarations, themes })).toContain('   * @theme hc #ff0\n   */');
   });
 
   it('escapes */ in a theme value', () => {
@@ -677,11 +680,45 @@ describe('@property syntax support', () => {
     expect(result).toContain("/** @syntax <color> */\n  colorPrimary: 'var(--color-primary)';");
   });
 
-  it('stacks @default above @syntax when both are available', () => {
+  it('puts @default and @syntax in one block when both are available', () => {
     const declarations = new Map([['--color-primary', 'red']]);
     const properties = new Map([['--color-primary', colorRule]]);
     const result = generateCode(['--color-primary'], undefined, undefined, declarations, undefined, properties);
-    expect(result).toContain("/** @default red */\n  /** @syntax <color> */\n  colorPrimary: 'var(--color-primary)',");
+    expect(result).toContain("  /**\n   * @default red\n   * @syntax <color>\n   */\n  colorPrimary: 'var(--color-primary)',");
+  });
+
+  it('merges several tags into one block that TypeScript quick info reads in full', () => {
+    const code = generateCode(['--color-bg'], {
+      declarations: new Map([['--color-bg', '#fff']]),
+      themes: new Map([['dark', new Map([['--color-bg', '#000']])]]),
+      properties: new Map([['--color-bg', colorRule]]),
+    });
+    const source = code + 'cssVars.colorBg;\n';
+    const files: Record<string, string> = { '/vars.ts': source };
+    const service = ts.createLanguageService({
+      getScriptFileNames: () => Object.keys(files),
+      getScriptVersion: () => '1',
+      getScriptSnapshot: (file) => (files[file] === undefined ? undefined : ts.ScriptSnapshot.fromString(files[file])),
+      getCurrentDirectory: () => '/',
+      getCompilationSettings: () => ({ strict: true, noLib: true }),
+      getDefaultLibFileName: () => '/lib.d.ts',
+      fileExists: (file) => files[file] !== undefined,
+      readFile: (file) => files[file],
+    });
+    const info = service.getQuickInfoAtPosition('/vars.ts', source.lastIndexOf('colorBg'));
+    expect(info?.tags?.map((tag) => `${tag.name} ${ts.displayPartsToString(tag.text)}`)).toEqual([
+      'default #fff',
+      'theme dark #000',
+      'syntax <color>',
+    ]);
+  });
+
+  it('continues a multi-line value inside a merged block', () => {
+    const result = generateCode(['--shadow'], {
+      declarations: new Map([['--shadow', '0 1px red,\n0 2px blue']]),
+      themes: new Map([['dark', new Map([['--shadow', 'none']])]]),
+    });
+    expect(result).toContain(['  /**', '   * @default 0 1px red,', '   * 0 2px blue', '   * @theme dark none', '   */'].join('\n'));
   });
 
   it('omits the comment when there is no property rule', () => {

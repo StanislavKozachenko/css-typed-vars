@@ -189,7 +189,7 @@ describe('generate', () => {
     await generate({ input, output });
 
     const result = await readFile(output, 'utf8');
-    expect(result).toContain("/** @syntax light | dark | system */\n  themeMode: 'var(--theme-mode)',");
+    expect(result).toContain("   * @default light\n   * @syntax light | dark | system\n   */\n  themeMode: 'var(--theme-mode)',");
     expect(result).toContain("export type ThemeModeSyntax = 'light' | 'dark' | 'system';");
   });
 
@@ -217,7 +217,7 @@ describe('generate', () => {
     await generate({ input, output, themes: { dark: '[data-theme="dark"]' } });
 
     const result = await readFile(output, 'utf8');
-    expect(result).toContain("  /** @default #fff */\n  /** @theme dark #000 */\n  colorBg: 'var(--color-bg)',");
+    expect(result).toContain("  /**\n   * @default #fff\n   * @theme dark #000\n   */\n  colorBg: 'var(--color-bg)',");
     expect(result).toContain("  /** @theme dark 2px */\n  glow: 'var(--glow)',");
   });
 
