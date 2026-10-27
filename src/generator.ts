@@ -179,10 +179,17 @@ function buildGroupedEntries(
   return { groups, ungrouped };
 }
 
-// A value containing `*/` would otherwise prematurely close the block comment
-// it's embedded in.
-function formatDefaultComment(value: string, indent = '  '): string {
-  return `${indent}/** @default ${value.replace(/\*\//g, '*\\/')} */`;
+// A value containing `*/` would otherwise prematurely close the comment.
+const escapeComment = (text: string) => text.replace(/\*\//g, '*\\/');
+
+// One tag renders as a single-line `/** @tag ... */`. Several render as one
+// multi-line block: TypeScript's quick info only reads the last JSDoc block
+// before a property, so separate blocks would hide all but the last tag.
+function renderJsDoc(tags: string[], indent: string): string[] {
+  if (tags.length === 0) return [];
+  if (tags.length === 1) return [`${indent}/** ${escapeComment(tags[0])} */`];
+  const body = tags.flatMap((tag) => escapeComment(tag).split('\n')).map((line) => `${indent} * ${line}`.trimEnd());
+  return [`${indent}/**`, ...body, `${indent} */`];
 }
 
 // `@property`'s `syntax` descriptor is always a quoted string, e.g. "'<color>'"
@@ -195,12 +202,12 @@ function unquoteCssString(value: string): string {
   return value;
 }
 
-function formatSyntaxComment(syntax: string, indent = '  '): string {
-  return `${indent}/** @syntax ${unquoteCssString(syntax).replace(/\*\//g, '*\\/')} */`;
-}
-
-function formatThemeComment(theme: string, value: string, indent = '  '): string {
-  return `${indent}/** @theme ${theme} ${value.replace(/\*\//g, '*\\/')} */`;
+function entryTags({ value, syntax, themes }: EntryMeta): string[] {
+  return [
+    ...(value ? [`@default ${value}`] : []),
+    ...(themes ?? []).map(([theme, themeValue]) => `@theme ${theme} ${themeValue}`),
+    ...(syntax ? [`@syntax ${unquoteCssString(syntax)}`] : []),
+  ];
 }
 
 // Matches a `syntax` descriptor that's a pipe-separated list of custom idents,
@@ -260,11 +267,9 @@ function renderEntryLines(
   indent: string,
   lineFor: (key: string, name: string) => string,
 ): string[] {
-  return entries.flatMap(({ key, name, value, syntax, themes }) => [
-    ...(value ? [formatDefaultComment(value, indent)] : []),
-    ...(themes ?? []).map(([theme, themeValue]) => formatThemeComment(theme, themeValue, indent)),
-    ...(syntax ? [formatSyntaxComment(syntax, indent)] : []),
-    `${indent}${lineFor(key, name)}`,
+  return entries.flatMap((entry) => [
+    ...renderJsDoc(entryTags(entry), indent),
+    `${indent}${lineFor(entry.key, entry.name)}`,
   ]);
 }
 

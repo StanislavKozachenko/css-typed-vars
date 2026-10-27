@@ -406,9 +406,11 @@ export default {
 
 ```ts
 export const cssVars = {
-  /** @default #ffffff */
-  /** @theme dark #0b0b0f */
-  /** @theme contrast #000000 */
+  /**
+   * @default #ffffff
+   * @theme dark #0b0b0f
+   * @theme contrast #000000
+   */
   colorBg: 'var(--color-bg)',
   /** @theme dark 0 0 8px #7c3aed */
   glow: 'var(--glow)',
@@ -462,8 +464,10 @@ If a variable is registered via the [CSS Properties and Values API](https://deve
 
 ```ts
 export const cssVars = {
-  /** @default light */
-  /** @syntax light | dark | system */
+  /**
+   * @default light
+   * @syntax light | dark | system
+   */
   themeMode: 'var(--theme-mode)',
 } as const;
 
@@ -472,7 +476,7 @@ export type CssVarName = keyof typeof cssVars;
 export type ThemeModeSyntax = 'light' | 'dark' | 'system';
 ```
 
-Every `syntax` shows up as a `@syntax` JSDoc comment. When it's a pipe-separated list of custom idents (an enum, like above) — as opposed to a generic data type like `<color>` or `<length>` — it also gets its own exported union type, named `<PascalCaseVarName>Syntax`. Useful when setting the property from JS: `el.style.setProperty('--theme-mode', mode satisfies ThemeModeSyntax)`.
+Every `syntax` shows up as a `@syntax` JSDoc tag (in the same comment block as `@default`, so editor hover shows both). When it's a pipe-separated list of custom idents (an enum, like above) — as opposed to a generic data type like `<color>` or `<length>` — it also gets its own exported union type, named `<PascalCaseVarName>Syntax`. Useful when setting the property from JS: `el.style.setProperty('--theme-mode', mode satisfies ThemeModeSyntax)`.
 
 Note this doesn't change the type of `cssVars.themeMode` itself — that's always the literal string `'var(--theme-mode)'`, regardless of `@property`, since that's what you actually get at runtime. The union type is a separate, additional export for validating what you *assign* to the variable.
 
