@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.8.0] - 2026-10-27
+
+### Added
+
+- support an array of targets in the CLI config file
+- add --lint-refs to report var() references to undeclared variables
+- add typed withFallback helper for var() fallbacks
+- carry CSS doc comments into generated JSDoc and tokens
+
+### Fixed
+
+- merge stacked JSDoc tags into one comment block
+
+---
+
+
 ## [0.7.0] - 2026-10-21
 
 ### Added
