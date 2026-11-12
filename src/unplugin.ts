@@ -1,7 +1,7 @@
 import { createUnplugin } from 'unplugin';
 import { writeOutput } from './write.js';
 import { join, resolve } from 'node:path';
-import { scanCss, scanUsage, collectVarNames, createFileMatcher, type ScannedCss } from './scanner.js';
+import { scanCss, scanUsage, collectVarNames, createFileMatcher, globBaseDirs, type ScannedCss } from './scanner.js';
 import { generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
@@ -35,6 +35,9 @@ export interface Options {
   /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
   helpers?: boolean;
 }
+
+const toArray = (value: string | string[] | undefined): string[] =>
+  value === undefined ? [] : Array.isArray(value) ? value : [value];
 
 const VIRTUAL_ID = 'css-typed-vars/vars';
 const RESOLVED_ID = '\0css-typed-vars/vars';
@@ -158,6 +161,9 @@ export default createUnplugin((options: Options) => {
         server.watcher.on('change', handle);
         server.watcher.on('add', handle);
         server.watcher.on('unlink', handle);
+        // Vite only watches its root; make sure files scanned from outside it
+        // (`../shared/*.css` in a monorepo) are watched too.
+        server.watcher.add(globBaseDirs([...toArray(options.input), ...(options.prune ? toArray(options.usage) : [])]));
       },
     },
 
