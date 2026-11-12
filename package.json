@@ -70,10 +70,12 @@
   "dependencies": {
     "chokidar": "^3.6.0",
     "fast-glob": "^3.3.2",
+    "picomatch": "^2.3.2",
     "unplugin": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
+    "@types/picomatch": "^2.3.4",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
     "vitepress": "^1.6.4",
