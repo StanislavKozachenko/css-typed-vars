@@ -61,7 +61,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--refs-ignore` | Name or `--prefix-*` pattern for `--lint-refs` to skip (repeatable) |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
 | `--usage-exclude` | Glob of source files to exclude from the usage scan (repeatable) |
-| `--watch` | Watch for file changes and regenerate |
+| `--watch` | Watch the `input` files (and, with `--prune`, the `--usage` files) and regenerate on change |
 | `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
 
@@ -109,7 +109,7 @@ export default [
 ```
 
 - `--check`, `--prune-check` and `--lint-refs` run for every target and exit `1` if any target fails; each message is tagged with its target's output (`css-typed-vars [packages/ui/src/cssVars.ts]: ...`).
-- `--watch` watches each target's `input` and regenerates only that target on change.
+- `--watch` watches each target's `input` (and `usage`, with `prune`) and regenerates only that target on change.
 - Flags that set options (`--input`, `--naming`, `--group`, ...) can't be combined with an array config — set them per target instead. Mode flags (`--watch`, `--check`, ...) work as usual.
 
 ## Grouped output
