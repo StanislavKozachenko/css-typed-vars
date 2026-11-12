@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import fg from 'fast-glob';
 import picomatch from 'picomatch';
 import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
@@ -25,6 +25,18 @@ export function createFileMatcher(
     const matches = (test: (path: string) => boolean) => test(fromCwd) || test(absolute);
     return matches(include) && !matches(ignore);
   };
+}
+
+// The static directory each glob is rooted at (`../shared/**/*.css` -> `../shared`),
+// absolute and deduplicated — what a watcher needs to cover to see every file
+// the globs can match, without relying on it supporting glob patterns.
+export function globBaseDirs(patterns: string | string[], cwd: string = process.cwd()): string[] {
+  const dirs = normalizePatterns(patterns).map((pattern) => {
+    const { base, isGlob } = picomatch.scan(pattern);
+    // A plain file path: watch its directory, so the file is seen even when it's created later.
+    return resolve(cwd, isGlob ? base || '.' : dirname(pattern));
+  });
+  return [...new Set(dirs)];
 }
 
 export interface ScannedCss {
