@@ -138,6 +138,43 @@ describe('CLI with a single config', () => {
     expect(both.stderr).toContain('css-typed-vars: --check cannot be combined with --watch.');
   });
 
+  it('prints help with every option and exits 0, even with a config file', async () => {
+    for (const flag of ['--help', '-h']) {
+      const { cwd, status, stdout } = await runCli({
+        'css-typed-vars.config.json': JSON.stringify({ input: 'x.css', output: 'vars.ts' }),
+        'x.css': ':root { --a: 1; }',
+      }, [flag]);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Usage: css-typed-vars --input <glob> --output <file> [options]');
+      for (const option of ['--exclude', '--naming', '--selector', '--usage-exclude', '--refs-ignore', '--lint-refs']) {
+        expect(stdout).toContain(option);
+      }
+      await expect(readFile(join(cwd, 'vars.ts'), 'utf8')).rejects.toThrow();
+    }
+  });
+
+  it('rejects an unknown option, suggesting the closest one', async () => {
+    const { status, stderr } = await runCli({ 'x.css': ':root { --a: 1; }' }, ['--input', 'x.css', '--ouput', 'vars.ts']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('css-typed-vars: unknown option "--ouput". Did you mean --output?');
+    const far = await runCli({}, ['--frobnicate']);
+    expect(far.stderr).toContain('unknown option "--frobnicate". Run with --help');
+  });
+
+  it('rejects a stray argument, such as a glob expanded by the shell', async () => {
+    const { status, stderr } = await runCli({}, ['--input', 'a.css', 'b.css', '--output', 'vars.ts']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('unexpected argument "b.css"');
+  });
+
+  it('accepts flag values that start with --, and rejects a flag missing its value', async () => {
+    const ok = await runCli({ 'x.css': ':root { color: var(--app-height); }' }, ['--input', 'x.css', '--lint-refs', '--refs-ignore', '--app-height']);
+    expect(ok.status).toBe(0);
+    const missing = await runCli({}, ['--input', 'x.css', '--output']);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain('css-typed-vars: --output requires a value.');
+  });
+
   it('rejects an invalid --naming value', async () => {
     const { status, stderr } = await runCli({}, ['--input', 'x.css', '--output', 'vars.ts', '--naming', 'shouty']);
     expect(status).toBe(1);
