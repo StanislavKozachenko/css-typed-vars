@@ -46,6 +46,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 
 | Flag | Description |
 |------|-------------|
+| `--config` | Config file to use instead of looking one up in the working directory — see [Config file](#config-file) |
 | `--input` | Glob pattern for CSS/SCSS/Less files (repeatable: `--input "src/**/*.css" --input "lib/**/*.css"`) |
 | `--output` | Output file. `.ts` → TypeScript, `.js` → JavaScript + `.d.ts` alongside, `.json` → [design tokens](/guide/design-tokens) |
 | `--exclude` | Glob pattern for files to exclude (repeatable: `--exclude "**/a/**" --exclude "**/b/**"`) |
@@ -74,13 +75,19 @@ The CLI looks for a config file in the current working directory (in order):
 
 1. `css-typed-vars.config.js`
 2. `css-typed-vars.config.mjs`
-3. `css-typed-vars.config.json`
+3. `css-typed-vars.config.cjs`
+4. `css-typed-vars.config.ts` / `.mts` — needs a Node.js version that strips types natively (22.18+ or 23.6+)
+5. `css-typed-vars.config.json`
 
-All options are supported in the config file:
+Or point to one explicitly with `--config <file>`.
+
+All options are supported in the config file. Wrap it in `defineConfig` for type checking and editor autocompletion (it also accepts an array, see below):
 
 ```js
 // css-typed-vars.config.js
-export default {
+import { defineConfig } from 'css-typed-vars';
+
+export default defineConfig({
   input: 'src/styles/**/*.{css,scss}',
   output: 'src/cssVars.ts',
   exclude: ['**/vendor/**', '**/node_modules/**'],
@@ -93,7 +100,7 @@ export default {
   refsIgnore: ['--tw-*'],
   prune: false,
   usage: 'src/**/*.{ts,tsx}',
-};
+});
 ```
 
 ### Multiple targets
