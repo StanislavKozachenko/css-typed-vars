@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -142,5 +142,60 @@ describe('CLI with a single config', () => {
     const { status, stderr } = await runCli({}, ['--input', 'x.css', '--output', 'vars.ts', '--naming', 'shouty']);
     expect(status).toBe(1);
     expect(stderr).toContain('css-typed-vars: invalid --naming value "shouty".');
+  });
+});
+
+describe('CLI --watch', () => {
+  // Starts the CLI in watch mode, resolving once it's watching; the returned
+  // `stdout` accumulates everything printed so far.
+  async function startWatch(files: Record<string, string>, args: string[]) {
+    const cwd = await mkdtemp(join(dir, 'watch-'));
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(join(cwd, path, '..'), { recursive: true });
+      await writeFile(join(cwd, path), content);
+    }
+    const child = spawn(process.execPath, [cliPath, ...args, '--watch'], { cwd });
+    const output = { stdout: '' };
+    child.stdout.on('data', (chunk) => { output.stdout += chunk; });
+    child.stderr.on('data', (chunk) => { output.stdout += chunk; });
+    await waitFor(() => output.stdout.includes('Watching for changes...'));
+    // Give the watchers a moment to finish their initial scan.
+    await new Promise((r) => setTimeout(r, 300));
+    return { cwd, child, output };
+  }
+
+  async function waitFor(condition: () => boolean | Promise<boolean>, timeout = 5000) {
+    const start = Date.now();
+    while (!(await condition())) {
+      if (Date.now() - start > timeout) throw new Error('timed out');
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  it("doesn't regenerate once per existing file on startup", async () => {
+    const { child, output } = await startWatch({
+      'a.css': ':root { --a: 1; }',
+      'b.css': ':root { --b: 1; }',
+    }, ['--input', '*.css', '--output', 'vars.ts']);
+    await new Promise((r) => setTimeout(r, 500));
+    child.kill();
+    expect(output.stdout.match(/Generated/g)).toHaveLength(1);
+  });
+
+  it('regenerates with --prune when a usage file changes, ignoring its own output', async () => {
+    const { cwd, child, output } = await startWatch({
+      'styles/x.css': ':root { --u: 1; --v: 2; }',
+      'src/app.ts': 'cssVars.u;',
+    }, ['--input', 'styles/*.css', '--output', 'src/vars.ts', '--prune', '--usage', 'src/**/*.ts']);
+    try {
+      expect(await readFile(join(cwd, 'src/vars.ts'), 'utf8')).not.toContain('--v');
+      await writeFile(join(cwd, 'src/app.ts'), 'cssVars.u; cssVars.v;');
+      await waitFor(async () => (await readFile(join(cwd, 'src/vars.ts'), 'utf8')).includes("v: 'var(--v)'"));
+      await new Promise((r) => setTimeout(r, 500));
+      // One run at startup, one for the edit — writing src/vars.ts didn't trigger another.
+      expect(output.stdout.match(/Generated/g)).toHaveLength(2);
+    } finally {
+      child.kill();
+    }
   });
 });
