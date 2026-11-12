@@ -146,6 +146,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--watch` | Watch the `input` files (and, with `--prune`, the `--usage` files) and regenerate on change |
 | `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
+| `--help`, `-h` | Print all options and exit. An unknown option or a stray argument (such as an unquoted glob the shell expanded) is an error |
 
 ### Pruning unused variables
 
