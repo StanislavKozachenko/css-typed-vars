@@ -221,6 +221,19 @@ describe('CLI with a single config', () => {
     expect(stderr).toContain('css-typed-vars: failed to load config "css-typed-vars.config.mjs"');
   });
 
+  it('runs --prune-check without --output', async () => {
+    const { cwd, status, stderr } = await runCli({
+      'x.css': ':root { --u: 1; --v: 2; }',
+      'src/app.ts': 'cssVars.u;',
+    }, ['--input', 'x.css', '--prune-check', '--usage', 'src/*.ts']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('css-typed-vars: 1 unused variable(s): --v');
+    await expect(readFile(join(cwd, 'vars.ts'), 'utf8')).rejects.toThrow();
+    const noInput = await runCli({}, ['--prune-check', '--usage', 'src/*.ts']);
+    expect(noInput.status).toBe(1);
+    expect(noInput.stderr).toContain('css-typed-vars: --prune-check requires --input <glob>');
+  });
+
   it('rejects an invalid --naming value', async () => {
     const { status, stderr } = await runCli({}, ['--input', 'x.css', '--output', 'vars.ts', '--naming', 'shouty']);
     expect(status).toBe(1);
