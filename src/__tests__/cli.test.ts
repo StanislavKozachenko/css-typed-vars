@@ -175,6 +175,44 @@ describe('CLI with a single config', () => {
     expect(missing.stderr).toContain('css-typed-vars: --output requires a value.');
   });
 
+  it('loads the config file given with --config, failing if it is missing', async () => {
+    const { cwd, status } = await runCli({
+      'configs/vars.config.json': JSON.stringify({ input: 'x.css', output: 'vars.ts', naming: 'snake' }),
+      'x.css': ':root { --color-primary: red; }',
+    }, ['--config', 'configs/vars.config.json']);
+    expect(status).toBe(0);
+    expect(await readFile(join(cwd, 'vars.ts'), 'utf8')).toContain("color_primary: 'var(--color-primary)'");
+    const missing = await runCli({}, ['--config', 'nope.config.js']);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain('css-typed-vars: config file "nope.config.js" not found.');
+  });
+
+  it('finds a .cjs config file', async () => {
+    const { cwd, status } = await runCli({
+      'css-typed-vars.config.cjs': "module.exports = { input: 'x.css', output: 'vars.ts' };",
+      'x.css': ':root { --a: 1; }',
+    }, []);
+    expect(status).toBe(0);
+    expect(await readFile(join(cwd, 'vars.ts'), 'utf8')).toContain("a: 'var(--a)'");
+  });
+
+  it('finds a .ts config file', async () => {
+    const { cwd, status } = await runCli({
+      'css-typed-vars.config.ts': "const config: { input: string; output: string } = { input: 'x.css', output: 'vars.ts' }; export default config;",
+      'x.css': ':root { --a: 1; }',
+    }, []);
+    expect(status).toBe(0);
+    expect(await readFile(join(cwd, 'vars.ts'), 'utf8')).toContain("a: 'var(--a)'");
+  });
+
+  it('reports a config file that fails to load instead of skipping it silently', async () => {
+    const { status, stderr } = await runCli({
+      'css-typed-vars.config.mjs': "import 'some-missing-package'; export default {};",
+    }, []);
+    expect(status).toBe(1);
+    expect(stderr).toContain('css-typed-vars: failed to load config "css-typed-vars.config.mjs"');
+  });
+
   it('rejects an invalid --naming value', async () => {
     const { status, stderr } = await runCli({}, ['--input', 'x.css', '--output', 'vars.ts', '--naming', 'shouty']);
     expect(status).toBe(1);

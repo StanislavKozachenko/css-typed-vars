@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { generate, checkGenerated, findUnusedVars, findUndefinedRefs } from '../index.js';
+import { generate, checkGenerated, findUnusedVars, findUndefinedRefs, defineConfig } from '../index.js';
 
 let dir: string;
 
@@ -456,5 +456,16 @@ describe('checkGenerated', () => {
 
     await writeFile(dtsPath, 'export declare const cssVars: {};');
     expect(await checkGenerated({ input, output })).toBe(false);
+  });
+});
+
+describe('defineConfig', () => {
+  it('returns the config as is, for one target or several', () => {
+    const single = { input: 'a.css', output: 'a.ts', naming: 'snake' as const };
+    const several = [single, { input: 'b.css', output: 'b.json' }];
+    expect(defineConfig(single)).toBe(single);
+    expect(defineConfig(several)).toBe(several);
+    // @ts-expect-error an invalid naming is a type error
+    defineConfig({ naming: 'shouty' });
   });
 });
