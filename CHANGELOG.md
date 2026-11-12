@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.9.0] - 2026-11-12
+
+### Added
+
+- report an output that is already up to date
+- add --config and look up .cjs, .ts and .mts config files
+- add defineConfig and the Config type for typed config files
+- add --help and reject unknown options and stray arguments
+
+### Fixed
+
+- create missing directories for dts and tokens output
+- watch usage files with --prune, debounce and serialize regeneration
+- rescan on changes to input and usage files, not by extension
+
+### Changed
+
+- document the generate() result and skipped writes
+- skip writing output files whose content is unchanged
+- document defineConfig, --config and config file lookup
+- document --help
+- describe what --watch watches
+- describe dev-server rescan triggers
+- add createFileMatcher to test paths against scan globs
+
+---
+
+
 ## [0.8.0] - 2026-10-27
 
 ### Added
