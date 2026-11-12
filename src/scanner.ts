@@ -1,9 +1,30 @@
 import { readFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import fg from 'fast-glob';
+import picomatch from 'picomatch';
 import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
+}
+
+// Builds a predicate telling whether a file (absolute, or relative to `cwd`)
+// is one the given globs would scan — so a watcher can react to exactly the
+// files a scan reads. Patterns are relative to `cwd`, like the scans' globs.
+export function createFileMatcher(
+  patterns: string | string[],
+  exclude?: string | string[],
+  cwd: string = process.cwd(),
+): (file: string) => boolean {
+  const compile = (globs: string | string[]) => picomatch(normalizePatterns(globs).map((p) => p.replace(/^\.\//, '')));
+  const include = compile(patterns);
+  const ignore = exclude ? compile(exclude) : () => false;
+  return (file) => {
+    const absolute = resolve(cwd, file).replace(/\\/g, '/');
+    const fromCwd = relative(cwd, absolute).replace(/\\/g, '/');
+    const matches = (test: (path: string) => boolean) => test(fromCwd) || test(absolute);
+    return matches(include) && !matches(ignore);
+  };
 }
 
 export interface ScannedCss {
