@@ -34,7 +34,82 @@ const OPTION_FLAGS = [
   '--group', '--prune', '--usage', '--usage-exclude', '--helpers', '--refs-ignore',
 ];
 
-const USAGE = 'Usage: css-typed-vars --input <glob> --output <file> [--watch] [--check] [--group] [--helpers] [--theme <name>=<selector>] [--prune --usage <glob>] [--prune-check --usage <glob>] [--lint-refs]';
+const USAGE = 'Usage: css-typed-vars --input <glob> --output <file> [options]';
+
+// Flags followed by a value; their value may itself start with `--`
+// (`--refs-ignore --app-height`), so it's skipped when looking for unknown flags.
+const VALUE_FLAGS = [
+  '--input', '--output', '--exclude', '--prefix', '--naming', '--selector', '--theme',
+  '--usage', '--usage-exclude', '--refs-ignore',
+];
+const BOOLEAN_FLAGS = [
+  '--group', '--prune', '--helpers', '--watch', '--check', '--prune-check', '--lint-refs',
+  '--version', '-v', '--help', '-h',
+];
+
+const HELP = `${USAGE}
+
+Generates typed constants for the CSS custom properties found in <glob>.
+Options can also be set in css-typed-vars.config.{js,mjs,json}; flags take precedence.
+
+Options:
+  --input <glob>          CSS files to scan (repeatable)
+  --output <file>         .ts, .js/.mjs/.cjs (plus a .d.ts), or .json (design tokens)
+  --exclude <glob>        Files to skip (repeatable)
+  --prefix <prefix>       Prefix every generated key
+  --naming <convention>   camelCase (default), snake, kebab, constant or pascal
+  --selector <selector>   Also scan this selector's blocks, not just :root/@theme (repeatable)
+  --theme <name>=<sel>    Theme block, emitted as @theme JSDoc tags (repeatable)
+  --group                 Nest keys by the first hyphen segment (cssVars.color.primary)
+  --helpers               Also emit CssVarRef and getCssVar/setCssVar/withFallback
+  --prune                 Drop vars with no cssVars.<key> usage (needs --usage)
+  --usage <glob>          Source files to scan for cssVars usage (repeatable)
+  --usage-exclude <glob>  Source files to skip in the usage scan (repeatable)
+
+Modes:
+  --watch                 Regenerate when input (or, with --prune, usage) files change
+  --check                 Exit 1 if the output is out of date, without writing
+  --prune-check           Exit 1 if any var has no cssVars.<key> usage (needs --usage)
+  --lint-refs             Exit 1 on var() references to undeclared variables
+  --refs-ignore <name>    Name or --prefix-* pattern for --lint-refs to skip (repeatable)
+  --version, -v           Print the version
+  --help, -h              Print this help
+
+Docs: https://stanislavkozachenko.github.io/css-typed-vars/`;
+
+function editDistance(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) {
+      next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    row = next;
+  }
+  return row[b.length];
+}
+
+// Rejects unknown flags (with a suggestion for a likely typo) and stray
+// positional arguments — typically an unquoted glob the shell expanded into
+// several files, of which only the first would otherwise be used.
+function validateArgs(): void {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (VALUE_FLAGS.includes(arg)) {
+      if (i + 1 >= args.length) throw new CliError(`css-typed-vars: ${arg} requires a value.`);
+      i++;
+      continue;
+    }
+    if (BOOLEAN_FLAGS.includes(arg)) continue;
+    if (arg.startsWith('-')) {
+      const known = [...VALUE_FLAGS, ...BOOLEAN_FLAGS].filter((flag) => flag.startsWith('--'));
+      const closest = known.reduce((best, flag) => (editDistance(arg, flag) < editDistance(arg, best) ? flag : best));
+      const hint = editDistance(arg, closest) <= 2 ? ` Did you mean ${closest}?` : '';
+      throw new CliError(`css-typed-vars: unknown option "${arg}".${hint} Run with --help to see all options.`);
+    }
+    throw new CliError(`css-typed-vars: unexpected argument "${arg}". If it's a glob, quote it so the shell doesn't expand it: --input "src/**/*.css".`);
+  }
+}
 
 interface Config {
   input?: string | string[];
@@ -151,7 +226,7 @@ function validateTarget({ options, tag }: Target, single: boolean): void {
   }
   if (!input || !output) {
     throw new CliError(single
-      ? `${USAGE}\nOr add a css-typed-vars.config.js file with input and output fields.`
+      ? `${USAGE}\nOr add a css-typed-vars.config.js file with input and output fields. Run with --help to see all options.`
       : `${tag}: every target needs "input" and "output".`);
   }
   if (group && prefix) throw new CliError(`${tag}: --group cannot be combined with --prefix.`);
@@ -253,6 +328,11 @@ function watchTarget(target: Target): void {
 }
 
 async function main(): Promise<void> {
+  validateArgs();
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(HELP);
+    return;
+  }
   if (args.includes('--version') || args.includes('-v')) {
     const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
     console.log(pkg.version);
