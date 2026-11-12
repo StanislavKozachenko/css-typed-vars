@@ -65,6 +65,17 @@ for (const ref of refs.filter((r) => !r.hasFallback)) {
 }
 ```
 
+## defineConfig
+
+`defineConfig(config)` returns its argument unchanged — it only exists to type a CLI config file (a single target or an array of them), so a typo in an option name or value is caught by your editor. The `Config` type (`Partial<GenerateOptions>`) is exported too.
+
+```ts
+// css-typed-vars.config.ts
+import { defineConfig } from 'css-typed-vars';
+
+export default defineConfig({ input: 'src/styles/**/*.css', output: 'src/cssVars.ts' });
+```
+
 ## Lower-level exports
 
 ```ts
