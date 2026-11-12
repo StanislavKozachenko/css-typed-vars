@@ -53,11 +53,20 @@
   "keywords": [
     "css",
     "scss",
+    "less",
     "css-variables",
     "custom-properties",
     "typescript",
     "codegen",
-    "typed"
+    "typed",
+    "vite-plugin",
+    "unplugin",
+    "webpack-plugin",
+    "rollup-plugin",
+    "esbuild-plugin",
+    "design-tokens",
+    "dtcg",
+    "tailwindcss"
   ],
   "files": [
     "dist"
