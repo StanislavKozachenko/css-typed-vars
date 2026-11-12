@@ -1,5 +1,5 @@
 import { createUnplugin } from 'unplugin';
-import { writeFile } from 'node:fs/promises';
+import { writeOutput } from './write.js';
 import { join, resolve } from 'node:path';
 import { scanCss, scanUsage, collectVarNames, createFileMatcher, type ScannedCss } from './scanner.js';
 import { generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
@@ -123,7 +123,7 @@ export default createUnplugin((options: Options) => {
             writeQueue = writeQueue.then(async () => {
               for (const [path, content] of files) {
                 if (myGeneration !== generation) return;
-                await writeFile(path, content, 'utf8');
+                await writeOutput(path, content);
               }
             }).catch(console.error);
             await writeQueue;
@@ -166,7 +166,7 @@ export default createUnplugin((options: Options) => {
       const scanned = await cachedScan;
       const names = await resolveNames(scanned);
       for (const [path, content] of outputFiles(options, names, generatorOptions(scanned))) {
-        await writeFile(path, content, 'utf8');
+        await writeOutput(path, content);
       }
     },
 
