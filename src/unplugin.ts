@@ -1,7 +1,7 @@
 import { createUnplugin } from 'unplugin';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { scanCss, scanUsage, collectVarNames, type ScannedCss } from './scanner.js';
+import { scanCss, scanUsage, collectVarNames, createFileMatcher, type ScannedCss } from './scanner.js';
 import { generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
 
@@ -137,8 +137,17 @@ export default createUnplugin((options: Options) => {
           }
         };
 
+        // Rescan for a change to a scanned CSS file or, with `prune`, to a source
+        // file scanned for usage — but never for the plugin's own output files,
+        // which a `usage` glob may well match (a `.d.ts` under `src/`).
+        const isInput = createFileMatcher(options.input, options.exclude);
+        const isUsage = options.prune ? createFileMatcher(options.usage!, options.usageExclude) : () => false;
+        const outputs = new Set([getDtsPath(options), options.tokens && resolve(process.cwd(), options.tokens)]
+          .filter((path): path is string => !!path)
+          .map((path) => resolve(path)));
         const handle = (file: string) => {
-          if (!/\.(css|scss|less)$/i.test(file)) return;
+          if (outputs.has(resolve(file))) return;
+          if (!isInput(file) && !isUsage(file)) return;
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
             debounceTimer = null;
