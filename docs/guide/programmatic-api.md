@@ -18,6 +18,8 @@ await generate({
 });
 ```
 
+`generate()` resolves to `true` if it wrote anything. An output file whose content wouldn't change is left untouched, so regenerating doesn't wake up `tsc --watch`, a dev server or your editor for nothing.
+
 ## checkGenerated
 
 `checkGenerated(options)` takes the same options and returns `Promise<boolean>` — `true` if the existing output already matches what would be generated, without writing anything. This is what `--check` does on the CLI.

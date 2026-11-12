@@ -30,3 +30,16 @@ describe('plugin buildStart', () => {
     expect(JSON.parse(await readFile(tokens, 'utf8'))).toHaveProperty('colorPrimary');
   });
 });
+
+describe('plugin buildStart with unchanged output', () => {
+  it('leaves an up-to-date dts file untouched', async () => {
+    const { stat, utimes } = await import('node:fs/promises');
+    const dts = join(dir, 'same', 'vars.d.ts');
+    const input = join(dir, '*.css').replace(/\\/g, '/');
+    await buildStart({ input, dts });
+    const past = new Date('2020-01-01');
+    await utimes(dts, past, past);
+    await buildStart({ input, dts });
+    expect((await stat(dts)).mtime.getTime()).toBe(past.getTime());
+  });
+});
