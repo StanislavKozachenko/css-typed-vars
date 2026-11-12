@@ -226,7 +226,11 @@ function validateTarget({ options, tag }: Target, single: boolean): void {
     if (!input) throw new CliError(`${tag}: --lint-refs requires --input <glob> (or "input" in the config file).`);
     return;
   }
-  if (!input || !output) {
+  // --prune-check only reports, so it doesn't need an output file.
+  if (pruneCheckMode && !input) {
+    throw new CliError(`${tag}: --prune-check requires --input <glob> (or "input" in the config file).`);
+  }
+  if (!input || (!output && !pruneCheckMode)) {
     throw new CliError(single
       ? `${USAGE}\nOr add a css-typed-vars.config.js file with input and output fields. Run with --help to see all options.`
       : `${tag}: every target needs "input" and "output".`);
