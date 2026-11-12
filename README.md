@@ -143,7 +143,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--refs-ignore` | Name or `--prefix-*` pattern for `--lint-refs` to skip (repeatable) |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
 | `--usage-exclude` | Glob of source files to exclude from the usage scan (repeatable) |
-| `--watch` | Watch for file changes and regenerate |
+| `--watch` | Watch the `input` files (and, with `--prune`, the `--usage` files) and regenerate on change |
 | `--check` | Check whether the output is up to date without writing; exits 1 if it would differ. Useful in CI. Can't be combined with `--watch`. |
 | `--version`, `-v` | Print the version number and exit |
 
