@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher, globBaseDirs } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -293,5 +293,22 @@ describe('createFileMatcher', () => {
     expect(createFileMatcher('../shared/*.css', undefined, cwd)(join(cwd, '..', 'shared', 'a.css'))).toBe(true);
     const absolute = join(cwd, 'styles').split('\\').join('/') + '/*.css';
     expect(createFileMatcher(absolute, undefined, cwd)(join(cwd, 'styles', 'a.css'))).toBe(true);
+  });
+});
+
+describe('globBaseDirs', () => {
+  const cwd = join(tmpdir(), 'project', 'app');
+
+  it('returns the static directory of each glob, absolute and deduplicated', () => {
+    expect(globBaseDirs(['../shared/**/*.css', '../shared/*.scss', 'styles/*.css', '*.css'], cwd)).toEqual([
+      join(cwd, '..', 'shared'),
+      join(cwd, 'styles'),
+      cwd,
+    ]);
+  });
+
+  it('handles brace patterns and a plain file path', () => {
+    expect(globBaseDirs('src/{a,b}/*.css', cwd)).toEqual([join(cwd, 'src')]);
+    expect(globBaseDirs('theme.css', cwd)).toEqual([cwd]);
   });
 });
