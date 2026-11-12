@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.10.0] - 2026-11-12
+
+### Added
+
+- declare supported Node.js versions in engines
+- detect cssVars usage through a renamed import
+
+### Fixed
+
+- watch input and usage files outside the Vite root
+
+### Changed
+
+- mention the supported Node.js versions
+- test on Node 20, 22 and 24, on Linux and Windows
+- update prune limitations for renamed imports
+- mention watching files outside the Vite root
+- add globBaseDirs to get the directories globs are rooted at
+
+---
+
+
 ## [0.9.0] - 2026-11-12
 
 ### Added
