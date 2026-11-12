@@ -204,18 +204,52 @@ async function run({ options }: Target): Promise<void> {
   console.log(`Generated → ${options.output}`);
 }
 
+const toArray = (value: string | string[] | undefined): string[] =>
+  value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+// Regenerates when an input file changes or, with --prune, a source file
+// scanned for usage does. Bursts of events are debounced into one run, and
+// runs never overlap, so an older run can't overwrite a newer one's output.
 function watchTarget(target: Target): void {
-  const { input, exclude } = target.options;
-  const patterns = Array.isArray(input) ? input : [input!];
-  const makeHandler = (label: string) => (file: string) => {
-    console.log(`${label}: ${file}`);
-    run(target).catch(console.error);
+  const { input, exclude, output, prune, usage, usageExclude } = target.options;
+  // The generated files themselves: a `usage` glob may well match them (`src/**/*.ts`).
+  const jsExt = /\.(m|c)?js$/i.exec(output!);
+  const outputs = new Set([output!, ...(jsExt ? [output!.slice(0, -jsExt[0].length) + '.d.ts'] : [])].map((path) => resolve(path)));
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let running = false;
+  let pending = false;
+  const regenerate = async (): Promise<void> => {
+    if (running) {
+      pending = true;
+      return;
+    }
+    running = true;
+    await run(target).catch(console.error);
+    running = false;
+    if (pending) {
+      pending = false;
+      await regenerate();
+    }
   };
-  const ignored = exclude ? (Array.isArray(exclude) ? exclude : [exclude]) : undefined;
-  watch(patterns, ignored ? { ignored } : undefined)
-    .on('change', makeHandler('Changed'))
-    .on('add', makeHandler('Added'))
-    .on('unlink', makeHandler('Removed'));
+  const makeHandler = (label: string) => (file: string) => {
+    if (outputs.has(resolve(file))) return;
+    console.log(`${label}: ${file}`);
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void regenerate();
+    }, 100);
+  };
+
+  const subscribe = (patterns: string[], ignored: string[]) => {
+    watch(patterns, { ignoreInitial: true, ...(ignored.length > 0 ? { ignored } : {}) })
+      .on('change', makeHandler('Changed'))
+      .on('add', makeHandler('Added'))
+      .on('unlink', makeHandler('Removed'));
+  };
+  subscribe(toArray(input), toArray(exclude));
+  if (prune) subscribe(toArray(usage), toArray(usageExclude));
 }
 
 async function main(): Promise<void> {
