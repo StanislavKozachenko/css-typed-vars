@@ -469,3 +469,26 @@ describe('defineConfig', () => {
     defineConfig({ naming: 'shouty' });
   });
 });
+
+describe('generate skipping unchanged output', () => {
+  it('resolves to whether anything was written, leaving unchanged files untouched', async () => {
+    const { writeFile, stat, utimes } = await import('node:fs/promises');
+    const input = join(dir, 'unchanged.css');
+    const output = join(dir, 'unchanged', 'vars.js');
+    const dts = join(dir, 'unchanged', 'vars.d.ts');
+    await writeFile(input, ':root { --a: 1px; }');
+    expect(await generate({ input, output })).toBe(true);
+
+    // Backdate both files, so a rewrite would be visible in their mtime.
+    const past = new Date('2020-01-01');
+    await utimes(output, past, past);
+    await utimes(dts, past, past);
+    expect(await generate({ input, output })).toBe(false);
+    expect((await stat(output)).mtime.getTime()).toBe(past.getTime());
+    expect((await stat(dts)).mtime.getTime()).toBe(past.getTime());
+
+    await writeFile(input, ':root { --a: 1px; --b: 2px; }');
+    expect(await generate({ input, output })).toBe(true);
+    expect(await readFile(dts, 'utf8')).toContain("b: 'var(--b)'");
+  });
+});

@@ -175,6 +175,13 @@ describe('CLI with a single config', () => {
     expect(missing.stderr).toContain('css-typed-vars: --output requires a value.');
   });
 
+  it('reports an output that is already up to date', async () => {
+    const { cwd } = await runCli({ 'x.css': ':root { --a: 1; }' }, ['--input', 'x.css', '--output', 'vars.ts']);
+    const again = spawnSync(process.execPath, [cliPath, '--input', 'x.css', '--output', 'vars.ts'], { cwd, encoding: 'utf8' });
+    expect(again.status).toBe(0);
+    expect(again.stdout).toContain('Up to date → vars.ts');
+  });
+
   it('loads the config file given with --config, failing if it is missing', async () => {
     const { cwd, status } = await runCli({
       'configs/vars.config.json': JSON.stringify({ input: 'x.css', output: 'vars.ts', naming: 'snake' }),
