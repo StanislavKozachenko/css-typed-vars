@@ -35,6 +35,19 @@ export interface GenerateOptions {
   refsIgnore?: string[];
 }
 
+/** A CLI config file's options — like `GenerateOptions`, but anything may come from CLI flags instead. */
+export type Config = Partial<GenerateOptions>;
+
+/**
+ * Types a config file's export (one target, or an array of targets):
+ * `export default defineConfig({ input: 'src/styles/*.css', output: 'src/cssVars.ts' })`.
+ */
+export function defineConfig(config: Config): Config;
+export function defineConfig(config: Config[]): Config[];
+export function defineConfig(config: Config | Config[]): Config | Config[] {
+  return config;
+}
+
 // Reports CSS variables with no detected `cssVars.<key>` usage in the given
 // source files, without writing or pruning anything. Backs `--prune-check`.
 export async function findUnusedVars(
