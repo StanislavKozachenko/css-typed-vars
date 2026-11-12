@@ -12,6 +12,8 @@ Each generated key also carries a `/** @default ... */` comment with the propert
 npm install -D css-typed-vars
 ```
 
+Requires Node.js 20.19+ or 22.12+.
+
 ## Two approaches
 
 | | CLI | Plugin |
