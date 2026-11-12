@@ -57,7 +57,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--group` | Nest keys by each variable's first hyphen segment — see [Grouped output](#grouped-output) |
 | `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar`/`setCssVar`/`withFallback` helpers — see [Usage examples](/guide/usage#reading-and-writing-at-runtime) |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage — see [Pruning unused variables](#pruning-unused-variables) |
-| `--prune-check` | Like `--prune`, but only reports without writing; exits 1 if any are found. Useful in CI |
+| `--prune-check` | Like `--prune`, but only reports without writing; exits 1 if any are found. Doesn't need `--output`. Useful in CI |
 | `--lint-refs` | Report `var()` references to undeclared variables — see [Linting var() references](#linting-var-references) |
 | `--refs-ignore` | Name or `--prefix-*` pattern for `--lint-refs` to skip (repeatable) |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |

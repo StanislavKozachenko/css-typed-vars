@@ -141,7 +141,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
 | `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)`/`withFallback(ref, fallback)` helpers — see [Usage](#usage). |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). With `--group`, matches `cssVars.<group>.<key>` and keeps a whole group referenced as `cssVars.<group>`. |
-| `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Useful in CI. |
+| `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Doesn't need `--output`. Useful in CI. |
 | `--lint-refs` | Report `var(--name)` references to variables not declared anywhere in the input; exits 1 if any (without a fallback) are found — see [Linting var() references](#linting-var-references) |
 | `--refs-ignore` | Name or `--prefix-*` pattern for `--lint-refs` to skip (repeatable) |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
