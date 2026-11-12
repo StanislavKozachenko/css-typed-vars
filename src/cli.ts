@@ -277,8 +277,8 @@ async function check({ options, tag }: Target): Promise<boolean> {
 }
 
 async function run({ options }: Target): Promise<void> {
-  await generate({ ...options, input: options.input!, output: options.output! });
-  console.log(`Generated → ${options.output}`);
+  const written = await generate({ ...options, input: options.input!, output: options.output! });
+  console.log(`${written ? 'Generated' : 'Up to date'} → ${options.output}`);
 }
 
 const toArray = (value: string | string[] | undefined): string[] =>
