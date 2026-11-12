@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -262,5 +262,36 @@ describe('scanCss', () => {
   it('returns an empty properties map when there are no @property rules', async () => {
     const result = await scanCss(`${dir}/a.css`);
     expect(result.properties.size).toBe(0);
+  });
+});
+
+describe('createFileMatcher', () => {
+  const cwd = join(tmpdir(), 'project');
+
+  it('matches files relative to cwd and absolute paths', () => {
+    const isMatch = createFileMatcher('styles/**/*.pcss', undefined, cwd);
+    expect(isMatch('styles/a.pcss')).toBe(true);
+    expect(isMatch(join(cwd, 'styles', 'nested', 'b.pcss'))).toBe(true);
+    expect(isMatch(join(cwd, 'styles', 'a.css'))).toBe(false);
+    expect(isMatch(join(cwd, 'other', 'a.pcss'))).toBe(false);
+  });
+
+  it('supports brace patterns, a leading ./ and backslash separators', () => {
+    const isMatch = createFileMatcher(['.\\styles\\*.{css,scss}'], undefined, cwd);
+    expect(isMatch(join(cwd, 'styles', 'a.css'))).toBe(true);
+    expect(isMatch(join(cwd, 'styles', 'a.scss'))).toBe(true);
+    expect(isMatch(join(cwd, 'styles', 'a.less'))).toBe(false);
+  });
+
+  it('honors exclude', () => {
+    const isMatch = createFileMatcher('styles/**/*.css', 'styles/vendor/**', cwd);
+    expect(isMatch(join(cwd, 'styles', 'a.css'))).toBe(true);
+    expect(isMatch(join(cwd, 'styles', 'vendor', 'lib.css'))).toBe(false);
+  });
+
+  it('matches patterns outside cwd and absolute patterns', () => {
+    expect(createFileMatcher('../shared/*.css', undefined, cwd)(join(cwd, '..', 'shared', 'a.css'))).toBe(true);
+    const absolute = join(cwd, 'styles').split('\\').join('/') + '/*.css';
+    expect(createFileMatcher(absolute, undefined, cwd)(join(cwd, 'styles', 'a.css'))).toBe(true);
   });
 });

@@ -23,7 +23,7 @@ export default defineConfig({
 import { cssVars } from 'css-typed-vars/vars';
 ```
 
-In dev mode, editing a watched CSS/SCSS/Less file triggers a rescan and a full page reload automatically.
+In dev mode, adding, editing or removing a file matched by `input` (minus `exclude`) triggers a rescan and a full page reload automatically. With `prune`, so does a change to a source file matched by `usage`, so a newly used variable shows up in the declaration file right away.
 
 ## webpack
 
