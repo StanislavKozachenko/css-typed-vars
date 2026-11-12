@@ -203,7 +203,8 @@ describe('CLI with a single config', () => {
     expect(await readFile(join(cwd, 'vars.ts'), 'utf8')).toContain("a: 'var(--a)'");
   });
 
-  it('finds a .ts config file', async () => {
+  // Needs native type stripping (Node.js 22.18+ / 23.6+).
+  it.skipIf(!process.features.typescript)('finds a .ts config file', async () => {
     const { cwd, status } = await runCli({
       'css-typed-vars.config.ts': "const config: { input: string; output: string } = { input: 'x.css', output: 'vars.ts' }; export default config;",
       'x.css': ':root { --a: 1; }',
