@@ -1,5 +1,6 @@
-import { writeFile, mkdir, readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { writeOutput } from './write.js';
 import { scanCss, scanUsage, collectVarNames, scanReferences, type FileReference } from './scanner.js';
 import { generateCode, generateJs, generateDeclaration, generateTokens, warnOnCollisions, type NamingConvention, type GeneratorOptions } from './generator.js';
 import { assertPruneCompatible, partitionUnused } from './prune.js';
@@ -130,13 +131,15 @@ async function computeOutputs(options: GenerateOptions): Promise<ComputedOutput>
   return { outPath, content: generateCode(names, generatorOptions) };
 }
 
-export async function generate(options: GenerateOptions): Promise<void> {
+// Writes the output (and its `.d.ts` for JS output). Files whose content
+// wouldn't change are left untouched; resolves to whether anything was written.
+export async function generate(options: GenerateOptions): Promise<boolean> {
   const { outPath, content, dtsPath, dtsContent } = await computeOutputs(options);
-  await mkdir(dirname(outPath), { recursive: true });
-  await writeFile(outPath, content, 'utf8');
+  let written = await writeOutput(outPath, content);
   if (dtsPath && dtsContent !== undefined) {
-    await writeFile(dtsPath, dtsContent, 'utf8');
+    if (await writeOutput(dtsPath, dtsContent)) written = true;
   }
+  return written;
 }
 
 // Computes the output in-memory and compares it against what's already on
