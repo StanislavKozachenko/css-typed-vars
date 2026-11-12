@@ -118,10 +118,27 @@ export async function scanVarNames(
 }
 
 // Matches `cssVars.foo` (dot access) and `cssVars['foo']`/`cssVars["foo"]` (bracket
-// access) in source text. Textual, not AST-based — like the rest of this scanner —
-// so it can't see through a renamed import (`import { cssVars as vars } ...`) and
-// doesn't distinguish a real reference from one inside a comment or string.
+// access) in source text, also through a renamed import in the same file
+// (`import { cssVars as vars } ...` -> `vars.foo`). Textual, not AST-based — like
+// the rest of this scanner — so it doesn't distinguish a real reference from one
+// inside a comment or string, nor follow a re-export under another name.
 const ROOT_RE = /\bcssVars\b/g;
+// `import { a, cssVars as vars } from` / `import type { ... } from` / `import def, { ... } from`.
+const IMPORT_RE = /\bimport\s+(?:type\s+)?(?:[A-Za-z_$][\w$]*\s*,\s*)?\{([^}]*)\}\s*from\b/g;
+const ALIAS_RE = /(?:^|,)\s*(?:type\s+)?cssVars\s+as\s+([A-Za-z_$][\w$]*)\s*(?=,|$)/g;
+
+// `cssVars`, plus any local name it's imported under in this file.
+function rootPattern(text: string): RegExp {
+  const aliases = new Set<string>();
+  for (const [, specifiers] of text.matchAll(IMPORT_RE)) {
+    for (const [, alias] of specifiers.matchAll(ALIAS_RE)) aliases.add(alias);
+  }
+  if (aliases.size === 0) return ROOT_RE;
+  // An alias must stand on its own: not part of a longer name, nor a property (`obj.vars`).
+  const names = [...aliases].map((alias) => alias.replace(/\$/g, '\\$')).join('|');
+  return new RegExp(`${ROOT_RE.source}|(?<![\\w$.])(?:${names})(?![\\w$])`, 'g');
+}
+
 const ACCESS_RE = /\s*(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*(['"`])((?:(?!\2).)*)\2\s*\])/y;
 
 function readAccess(text: string, from: number): { key: string; end: number } | null {
@@ -140,7 +157,7 @@ export interface CssVarsUsage {
 }
 
 function extractUsage(text: string, into: CssVarsUsage): void {
-  for (const root of text.matchAll(ROOT_RE)) {
+  for (const root of text.matchAll(rootPattern(text))) {
     const first = readAccess(text, root.index + root[0].length);
     if (!first) continue;
     into.keys.add(first.key);

@@ -312,3 +312,37 @@ describe('globBaseDirs', () => {
     expect(globBaseDirs('theme.css', cwd)).toEqual([cwd]);
   });
 });
+
+describe('scanUsage through a renamed import', () => {
+  let aliasDir: string;
+
+  beforeAll(async () => {
+    aliasDir = await mkdtemp(join(tmpdir(), 'css-typed-vars-alias-'));
+    await writeFile(join(aliasDir, 'a.ts'), [
+      "import { cssVars as vars } from './cssVars';",
+      'const a = vars.colorPrimary;',
+      "const b = vars['spacing-md'];",
+      'const c = vars.color.secondary;',
+    ].join('\n'));
+    await writeFile(join(aliasDir, 'b.ts'), [
+      'import Default, {',
+      '  type CssVarName,',
+      '  cssVars as $v,',
+      "} from './cssVars';",
+      'const d = $v.radiusSm;',
+    ].join('\n'));
+    // No alias here: `vars` is an unrelated object, and `obj.vars` a property.
+    await writeFile(join(aliasDir, 'c.ts'), 'const vars = { notACssVar: 1 }; vars.notACssVar; obj.$v.alsoNot;');
+    await writeFile(join(aliasDir, 'd.ts'), 'import { cssVars as tokens } from "./cssVars"; othertokens.nope; tokens.fontBody;');
+  });
+
+  afterAll(async () => {
+    await rm(aliasDir, { recursive: true });
+  });
+
+  it('finds usage through the alias, in the file that declares it only', async () => {
+    const { keys, paths } = await scanUsage(`${aliasDir}/*.ts`);
+    expect([...keys].sort()).toEqual(['color', 'colorPrimary', 'fontBody', 'radiusSm', 'spacing-md']);
+    expect(paths.has(['color', 'secondary'].join(String.fromCharCode(0)))).toBe(true);
+  });
+});

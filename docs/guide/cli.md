@@ -171,9 +171,9 @@ css-typed-vars: pruned 2 unused variable(s): --legacy-shadow, --old-radius
 - run: npx css-typed-vars --prune-check --usage "src/**/*.{ts,tsx}"
 ```
 
-This is a textual scan, not a full parser, so it has two limitations worth knowing:
+This is a textual scan, not a full parser, so it has limitations worth knowing:
 
-- It won't see through a renamed import (`import { cssVars as vars } from './cssVars'` — usages via `vars.foo` aren't detected).
+- A renamed import (`import { cssVars as vars } from './cssVars'`) is followed within the file that declares it, but not a re-export under another name or an assignment (`const v = cssVars`).
 - A match inside a comment or string still counts as "used".
 
 With `--group`, a grouped variable counts as used when it's accessed as `cssVars.<group>.<key>` (dot or bracket access), or when its whole group is referenced as `cssVars.<group>` without further access — e.g. `Object.values(cssVars.color)` keeps every `--color-*` variable.
