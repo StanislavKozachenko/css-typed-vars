@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
-import { generate, checkGenerated, findUnusedVars, findUndefinedRefs, type FileReference } from './index.js';
+import { generate, checkGenerated, findUnusedVars, findUndefinedRefs, type Config, type FileReference } from './index.js';
 import { VALID_NAMINGS, type NamingConvention } from './generator.js';
 
 const args = process.argv.slice(2).flatMap((arg) => {
@@ -40,7 +40,7 @@ const USAGE = 'Usage: css-typed-vars --input <glob> --output <file> [options]';
 // (`--refs-ignore --app-height`), so it's skipped when looking for unknown flags.
 const VALUE_FLAGS = [
   '--input', '--output', '--exclude', '--prefix', '--naming', '--selector', '--theme',
-  '--usage', '--usage-exclude', '--refs-ignore',
+  '--usage', '--usage-exclude', '--refs-ignore', '--config',
 ];
 const BOOLEAN_FLAGS = [
   '--group', '--prune', '--helpers', '--watch', '--check', '--prune-check', '--lint-refs',
@@ -50,9 +50,10 @@ const BOOLEAN_FLAGS = [
 const HELP = `${USAGE}
 
 Generates typed constants for the CSS custom properties found in <glob>.
-Options can also be set in css-typed-vars.config.{js,mjs,json}; flags take precedence.
+Options can also be set in css-typed-vars.config.{js,mjs,cjs,ts,mts,json}; flags take precedence.
 
 Options:
+  --config <file>         Config file to use instead of looking one up
   --input <glob>          CSS files to scan (repeatable)
   --output <file>         .ts, .js/.mjs/.cjs (plus a .d.ts), or .json (design tokens)
   --exclude <glob>        Files to skip (repeatable)
@@ -111,49 +112,50 @@ function validateArgs(): void {
   }
 }
 
-interface Config {
-  input?: string | string[];
-  output?: string;
-  exclude?: string | string[];
-  prefix?: string;
-  naming?: NamingConvention;
-  selectors?: string[];
-  themes?: Record<string, string>;
-  group?: boolean;
-  prune?: boolean;
-  usage?: string | string[];
-  usageExclude?: string | string[];
-  helpers?: boolean;
-  refsIgnore?: string[];
-}
-
 // Thrown for a usage error: printed as-is, then the CLI exits 1.
 class CliError extends Error {}
 
+// Looked up in the working directory, first match wins. A `.ts`/`.mts` config
+// needs a Node.js version that strips types natively (22.18+, or 23.6+).
+const CONFIG_FILES = [
+  'css-typed-vars.config.js',
+  'css-typed-vars.config.mjs',
+  'css-typed-vars.config.cjs',
+  'css-typed-vars.config.ts',
+  'css-typed-vars.config.mts',
+  'css-typed-vars.config.json',
+];
+
+async function importConfig(path: string): Promise<Config | Config[]> {
+  if (/\.json$/i.test(path)) return JSON.parse(await readFile(path, 'utf8')) as Config | Config[];
+  const mod = await import(pathToFileURL(path).href) as { default?: Config | Config[] };
+  return mod.default ?? {};
+}
+
 async function loadConfig(): Promise<Config | Config[]> {
-  const candidates = [
-    'css-typed-vars.config.js',
-    'css-typed-vars.config.mjs',
-    'css-typed-vars.config.json',
-  ];
-  for (const file of candidates) {
-    const path = resolve(process.cwd(), file);
+  const explicit = getArg('--config');
+  if (explicit !== undefined) {
+    const path = resolve(process.cwd(), explicit);
+    if (!(await exists(path))) throw new CliError(`css-typed-vars: config file "${explicit}" not found.`);
     try {
-      if (file.endsWith('.json')) {
-        const content = await readFile(path, 'utf8');
-        return JSON.parse(content) as Config | Config[];
-      } else {
-        const mod = await import(pathToFileURL(path).href) as { default?: Config | Config[] };
-        return mod.default ?? {};
-      }
+      return await importConfig(path);
     } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === 'ENOENT' || code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') continue;
+      throw new CliError(`css-typed-vars: failed to load config "${explicit}": ${(err as Error).message}`);
+    }
+  }
+  for (const file of CONFIG_FILES) {
+    const path = resolve(process.cwd(), file);
+    if (!(await exists(path))) continue;
+    try {
+      return await importConfig(path);
+    } catch (err) {
       console.warn(`css-typed-vars: failed to load config "${file}": ${(err as Error).message}`);
     }
   }
   return {};
 }
+
+const exists = (path: string): Promise<boolean> => access(path).then(() => true, () => false);
 
 // CLI flags take precedence over the config file.
 function applyFlags(config: Config): Config {
