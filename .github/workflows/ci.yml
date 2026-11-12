@@ -18,6 +18,28 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Every supported Node.js version, on Linux and Windows (path handling and
+  # file watching differ). Separate from "Test & Build", the required check.
+  compat:
+    name: Node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22, 24]
+        exclude:
+          - os: ubuntu-latest
+            node: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
   changelog-check:
     name: CHANGELOG pre-check
     runs-on: ubuntu-latest
