@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/css-typed-vars/schema.json",
+  "title": "css-typed-vars config",
+  "description": "Options for the css-typed-vars CLI: one target, or an array of targets.",
+  "oneOf": [
+    { "$ref": "#/definitions/config" },
+    {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/config" }
+    }
+  ],
+  "definitions": {
+    "globs": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "$schema": { "type": "string" },
+        "input": {
+          "$ref": "#/definitions/globs",
+          "description": "Glob(s) of the CSS files to scan."
+        },
+        "output": {
+          "type": "string",
+          "description": "Output file: .ts, .js/.mjs/.cjs (plus a .d.ts), or .json for W3C design tokens (DTCG)."
+        },
+        "exclude": {
+          "$ref": "#/definitions/globs",
+          "description": "Glob(s) of files to skip."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix every generated key. Can't be combined with group."
+        },
+        "naming": {
+          "enum": ["camelCase", "snake", "kebab", "constant", "pascal"],
+          "description": "Naming convention of the generated keys. Defaults to camelCase."
+        },
+        "selectors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Also scan these selectors' blocks, not just :root and @theme."
+        },
+        "themes": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Theme name -> selector ('[data-theme=\"dark\"]') or @media prelude ('@media (prefers-color-scheme: dark)'). Values are emitted as @theme JSDoc tags."
+        },
+        "group": {
+          "type": "boolean",
+          "description": "Nest keys by the first hyphen segment of the name (cssVars.color.primary)."
+        },
+        "helpers": {
+          "type": "boolean",
+          "description": "Also emit the CssVarRef type and the getCssVar/setCssVar/withFallback helpers."
+        },
+        "prune": {
+          "type": "boolean",
+          "description": "Drop vars with no detected cssVars.<key> usage. Requires usage."
+        },
+        "usage": {
+          "$ref": "#/definitions/globs",
+          "description": "Glob(s) of the source files to scan for cssVars usage (prune, --prune-check)."
+        },
+        "usageExclude": {
+          "$ref": "#/definitions/globs",
+          "description": "Glob(s) of source files to skip in the usage scan."
+        },
+        "refsIgnore": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Names (or --prefix-* patterns) that --lint-refs shouldn't report, e.g. vars set from JS."
+        }
+      }
+    }
+  }
+}

@@ -36,7 +36,8 @@
       "types": "./dist/generated.d.ts",
       "import": "./dist/vars.js",
       "require": "./dist/vars.cjs"
-    }
+    },
+    "./schema.json": "./schema.json"
   },
   "bin": {
     "css-typed-vars": "./dist/cli.js"
@@ -69,7 +70,8 @@
     "tailwindcss"
   ],
   "files": [
-    "dist"
+    "dist",
+    "schema.json"
   ],
   "scripts": {
     "build": "tsup && node scripts/postbuild.mjs",
