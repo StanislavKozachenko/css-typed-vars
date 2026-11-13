@@ -15,10 +15,25 @@ afterAll(async () => {
   await rm(dir, { recursive: true });
 });
 
+interface Hooks {
+  buildStart: (this: Context) => Promise<void>;
+  load: (this: Context, id: string) => Promise<string | undefined>;
+  vite: { configResolved: (config: { command: string }) => void };
+}
+interface Context {
+  addWatchFile: (id: string) => void;
+}
+
+// A bundler context that records the files the plugin asks to watch.
+function context(): Context & { watched: string[] } {
+  const watched: string[] = [];
+  return { watched, addWatchFile: (id) => watched.push(id) };
+}
+
 // Runs the plugin's buildStart hook, as a bundler would at the start of a build.
-async function buildStart(options: Options): Promise<void> {
-  const hooks = plugin.raw(options, { framework: 'rollup' }) as { buildStart: () => Promise<void> };
-  await hooks.buildStart();
+async function buildStart(options: Options, ctx: Context = context()): Promise<void> {
+  const hooks = plugin.raw(options, { framework: 'rollup' }) as unknown as Hooks;
+  await hooks.buildStart.call(ctx);
 }
 
 describe('plugin buildStart', () => {
@@ -41,5 +56,45 @@ describe('plugin buildStart with unchanged output', () => {
     await utimes(dts, past, past);
     await buildStart({ input, dts });
     expect((await stat(dts)).mtime.getTime()).toBe(past.getTime());
+  });
+});
+
+describe('plugin watch files', () => {
+  const input = () => join(dir, '*.css').replace(/\\/g, '/');
+
+  it('watches the scanned files from buildStart', async () => {
+    const ctx = context();
+    await buildStart({ input: input(), dts: false }, ctx);
+    expect(ctx.watched).toEqual([join(dir, 'a.css')]);
+  });
+
+  it('watches the usage files too with prune', async () => {
+    await writeFile(join(dir, 'app.ts'), 'cssVars.colorPrimary;');
+    const ctx = context();
+    await buildStart({ input: input(), dts: false, prune: true, usage: join(dir, '*.ts').replace(/\\/g, '/') }, ctx);
+    expect(ctx.watched).toEqual([join(dir, 'a.css'), join(dir, 'app.ts')]);
+  });
+
+  it('watches the scanned files when loading the virtual module', async () => {
+    const hooks = plugin.raw({ input: input(), dts: false }, { framework: 'esbuild' }) as unknown as Hooks;
+    const ctx = context();
+    expect(await hooks.load.call(ctx, '\0css-typed-vars/vars')).toContain('colorPrimary');
+    expect(ctx.watched).toEqual([join(dir, 'a.css')]);
+  });
+
+  it("doesn't call addWatchFile from buildStart with esbuild, which doesn't allow it there", async () => {
+    const hooks = plugin.raw({ input: input(), dts: false }, { framework: 'esbuild' }) as unknown as Hooks;
+    const ctx = context();
+    await hooks.buildStart.call(ctx);
+    expect(ctx.watched).toEqual([]);
+  });
+
+  it('leaves watching to the Vite dev server', async () => {
+    const hooks = plugin.raw({ input: input(), dts: false }, { framework: 'vite' }) as unknown as Hooks;
+    hooks.vite.configResolved({ command: 'serve' });
+    const ctx = context();
+    await hooks.buildStart.call(ctx);
+    await hooks.load.call(ctx, '\0css-typed-vars/vars');
+    expect(ctx.watched).toEqual([]);
   });
 });

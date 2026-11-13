@@ -46,6 +46,8 @@ export interface ScannedCss {
   themes: Map<string, Map<string, string>>;
   /** `/** ... *\/` doc comments placed directly before a declaration. */
   docs: Map<string, VarDoc>;
+  /** Every file the globs matched, absolute — what the scan's result depends on. */
+  files: string[];
 }
 
 // Every var name found, sorted — base declarations plus any declared only
@@ -97,7 +99,7 @@ export async function scanCss(
       for (const [name, value] of values) themeValues.get(theme)!.set(name, value);
     }
   }
-  return { declarations, properties, themes: themeValues, docs };
+  return { declarations, properties, themes: themeValues, docs, files };
 }
 
 export async function scanVarDeclarations(
@@ -154,6 +156,8 @@ export interface CssVarsUsage {
   wholeKeys: Set<string>;
   /** Second-level accesses (`cssVars.<key>.<leaf>`), as `[key, leaf]` joined with `\0`. */
   paths: Set<string>;
+  /** Every source file the globs matched, absolute. */
+  files: string[];
 }
 
 function extractUsage(text: string, into: CssVarsUsage): void {
@@ -174,7 +178,7 @@ export async function scanUsage(patterns: string | string[], exclude?: string | 
   const normalized = normalizePatterns(patterns);
   const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
   const files = await fg(normalized, { absolute: true, ignore: normalizedExclude });
-  const usage: CssVarsUsage = { keys: new Set(), wholeKeys: new Set(), paths: new Set() };
+  const usage: CssVarsUsage = { keys: new Set(), wholeKeys: new Set(), paths: new Set(), files };
   const texts = await Promise.all(
     files.map(async (file) => {
       try {

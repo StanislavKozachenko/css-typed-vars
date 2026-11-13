@@ -254,6 +254,8 @@ No file is generated — CSS variables are served as a virtual module directly b
 
 TypeScript types are written to `node_modules/css-typed-vars/dist/generated.d.ts` automatically on each build or dev server start.
 
+In watch builds (`vite build --watch`, `rollup --watch`, `webpack --watch`, esbuild's `context.watch()`), editing a scanned CSS file triggers a rebuild.
+
 ### Vite
 
 ```ts
