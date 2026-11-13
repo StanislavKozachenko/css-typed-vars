@@ -80,7 +80,7 @@
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
-    "chokidar": "^3.6.0",
+    "chokidar": "^5.0.0",
     "fast-glob": "^3.3.2",
     "picomatch": "^2.3.2",
     "unplugin": "^3.0.0"
