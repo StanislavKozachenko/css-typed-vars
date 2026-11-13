@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
 import { generate, checkGenerated, findUnusedVars, findUndefinedRefs, type Config, type FileReference } from './index.js';
 import { VALID_NAMINGS, type NamingConvention } from './generator.js';
+import { CONFIG_KEYS } from './config.js';
 
 const args = process.argv.slice(2).flatMap((arg) => {
   const match = /^(--[\w-]+)=(.*)$/.exec(arg);
@@ -161,6 +162,16 @@ async function loadConfig(): Promise<Config | Config[]> {
 
 const exists = (path: string): Promise<boolean> => access(path).then(() => true, () => false);
 
+// Warns about a key that isn't an option — most likely a typo, which would
+// otherwise be silently ignored. `$schema` (for JSON configs) is allowed.
+function warnUnknownKeys(config: Config, tag: string): void {
+  if (typeof config !== 'object' || config === null) return;
+  for (const key of Object.keys(config)) {
+    if (key === '$schema' || (CONFIG_KEYS as readonly string[]).includes(key)) continue;
+    console.warn(`${tag}: unknown option "${key}" in the config file.${suggest(key, CONFIG_KEYS)}`);
+  }
+}
+
 // CLI flags take precedence over the config file.
 function applyFlags(config: Config): Config {
   const inputArgs = getArgs('--input');
@@ -202,13 +213,18 @@ interface Target {
 }
 
 function loadTargets(config: Config | Config[]): Target[] {
-  if (!Array.isArray(config)) return [{ options: applyFlags(config), tag: 'css-typed-vars' }];
+  if (!Array.isArray(config)) {
+    warnUnknownKeys(config, 'css-typed-vars');
+    return [{ options: applyFlags(config), tag: 'css-typed-vars' }];
+  }
   if (config.length === 0) throw new CliError('css-typed-vars: the config file exports an empty array.');
   const used = OPTION_FLAGS.filter((flag) => args.includes(flag));
   if (used.length > 0) {
     throw new CliError(`css-typed-vars: ${used.join(', ')} can't be used with an array config — set options per target in the config file instead.`);
   }
-  return config.map((options, i) => ({ options, tag: `css-typed-vars [${options.output ?? `target ${i + 1}`}]` }));
+  const targets = config.map((options, i) => ({ options, tag: `css-typed-vars [${options.output ?? `target ${i + 1}`}]` }));
+  for (const { options, tag } of targets) warnUnknownKeys(options, tag);
+  return targets;
 }
 
 function validateModes(): void {
