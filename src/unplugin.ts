@@ -62,23 +62,38 @@ function outputFiles(options: Options, names: string[], generatorOptions: Genera
   return files;
 }
 
-export default createUnplugin((options: Options) => {
+interface ResolvedNames {
+  names: string[];
+  /** The source files scanned for usage with `prune` — the names depend on them too. */
+  usageFiles: string[];
+}
+
+export default createUnplugin((options: Options, meta) => {
   assertPruneCompatible(options);
 
   let cachedScan: Promise<ScannedCss> | null = null;
+  // The Vite dev server rescans through its own watcher (see configureServer).
+  let devServer = false;
 
   const scan = () => scanCss(options.input, options.exclude, options.selectors, options.themes);
 
   // When `prune` is set, drops names with no detected `cssVars.<key>` usage
   // (warning about it). A no-op otherwise.
-  const applyPrune = async (names: string[]): Promise<string[]> => {
-    if (!options.prune) return names;
+  const applyPrune = async (names: string[]): Promise<ResolvedNames> => {
+    if (!options.prune) return { names, usageFiles: [] };
     const usage = await scanUsage(options.usage!, options.usageExclude);
     const { used, unused } = partitionUnused(names, usage, options);
     if (unused.length > 0) {
       console.warn(`css-typed-vars: pruned ${unused.length} unused variable(s): ${unused.join(', ')}`);
     }
-    return used;
+    return { names: used, usageFiles: usage.files };
+  };
+
+  // The scanned files aren't in the module graph, so a watch build wouldn't
+  // rerun when one changes — unless it's told to watch them.
+  const watchFiles = (context: { addWatchFile: (id: string) => void }, scanned: ScannedCss, usageFiles: string[]) => {
+    if (devServer) return;
+    for (const file of [...scanned.files, ...usageFiles]) context.addWatchFile(resolve(file));
   };
 
   const generatorOptions = ({ declarations, properties, themes, docs }: ScannedCss): GeneratorOptions => ({
@@ -93,7 +108,7 @@ export default createUnplugin((options: Options) => {
   });
 
   // Sorts the scanned names, warns on key collisions, and applies pruning.
-  const resolveNames = async (scanned: ScannedCss): Promise<string[]> => {
+  const resolveNames = async (scanned: ScannedCss): Promise<ResolvedNames> => {
     const names = collectVarNames(scanned);
     warnOnCollisions(names, options.prefix, options.naming);
     return applyPrune(names);
@@ -104,6 +119,10 @@ export default createUnplugin((options: Options) => {
 
     vite: {
       enforce: 'pre' as const,
+
+      configResolved(config) {
+        devServer = config.command === 'serve';
+      },
 
       configureServer(server: any) {
         let generation = 0;
@@ -116,7 +135,7 @@ export default createUnplugin((options: Options) => {
           cachedScan = scanPromise;
           const scanned = await scanPromise;
           if (myGeneration !== generation) return;
-          const names = await resolveNames(scanned);
+          const { names } = await resolveNames(scanned);
           if (myGeneration !== generation) return;
 
           const files = outputFiles(options, names, generatorOptions(scanned));
@@ -170,7 +189,9 @@ export default createUnplugin((options: Options) => {
     async buildStart() {
       cachedScan = scan();
       const scanned = await cachedScan;
-      const names = await resolveNames(scanned);
+      const { names, usageFiles } = await resolveNames(scanned);
+      // esbuild only allows addWatchFile in resolveId/load/transform; `load` covers it.
+      if (meta.framework !== 'esbuild') watchFiles(this, scanned, usageFiles);
       for (const [path, content] of outputFiles(options, names, generatorOptions(scanned))) {
         await writeOutput(path, content);
       }
@@ -183,7 +204,8 @@ export default createUnplugin((options: Options) => {
     async load(id: string) {
       if (id === RESOLVED_ID) {
         const scanned = await (cachedScan ?? scan());
-        const names = await applyPrune(collectVarNames(scanned));
+        const { names, usageFiles } = await applyPrune(collectVarNames(scanned));
+        watchFiles(this, scanned, usageFiles);
         return generateJs(names, generatorOptions(scanned));
       }
     },
