@@ -90,6 +90,12 @@ function editDistance(a: string, b: string): number {
   return row[b.length];
 }
 
+// ` Did you mean <x>?` for the candidate closest to a likely typo, or ''.
+function suggest(value: string, candidates: readonly string[]): string {
+  const closest = candidates.reduce((best, candidate) => (editDistance(value, candidate) < editDistance(value, best) ? candidate : best));
+  return editDistance(value, closest) <= 2 ? ` Did you mean ${closest}?` : '';
+}
+
 // Rejects unknown flags (with a suggestion for a likely typo) and stray
 // positional arguments — typically an unquoted glob the shell expanded into
 // several files, of which only the first would otherwise be used.
@@ -104,9 +110,7 @@ function validateArgs(): void {
     if (BOOLEAN_FLAGS.includes(arg)) continue;
     if (arg.startsWith('-')) {
       const known = [...VALUE_FLAGS, ...BOOLEAN_FLAGS].filter((flag) => flag.startsWith('--'));
-      const closest = known.reduce((best, flag) => (editDistance(arg, flag) < editDistance(arg, best) ? flag : best));
-      const hint = editDistance(arg, closest) <= 2 ? ` Did you mean ${closest}?` : '';
-      throw new CliError(`css-typed-vars: unknown option "${arg}".${hint} Run with --help to see all options.`);
+      throw new CliError(`css-typed-vars: unknown option "${arg}".${suggest(arg, known)} Run with --help to see all options.`);
     }
     throw new CliError(`css-typed-vars: unexpected argument "${arg}". If it's a glob, quote it so the shell doesn't expand it: --input "src/**/*.css".`);
   }
