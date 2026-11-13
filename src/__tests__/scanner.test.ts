@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher, globBaseDirs } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher, globBaseDirs, globWatchRoots } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -344,5 +344,27 @@ describe('scanUsage through a renamed import', () => {
     const { keys, paths } = await scanUsage(`${aliasDir}/*.ts`);
     expect([...keys].sort()).toEqual(['color', 'colorPrimary', 'fontBody', 'radiusSm', 'spacing-md']);
     expect(paths.has(['color', 'secondary'].join(String.fromCharCode(0)))).toBe(true);
+  });
+});
+
+describe('globWatchRoots', () => {
+  const cwd = join(tmpdir(), 'project', 'app');
+
+  it('limits the depth to what the glob can match', () => {
+    expect(globWatchRoots(['*.css', 'styles/*/theme.css', 'theme.css'], cwd)).toEqual([
+      { dir: cwd, depth: 0 },
+      { dir: join(cwd, 'styles'), depth: 1 },
+    ]);
+  });
+
+  it('has no depth limit for a globstar or a brace spanning directories', () => {
+    expect(globWatchRoots('src/**/*.css', cwd)).toEqual([{ dir: join(cwd, 'src') }]);
+    expect(globWatchRoots('src/{a/b,c}/*.css', cwd)).toEqual([{ dir: join(cwd, 'src') }]);
+    expect(globWatchRoots('src/{a,b}/*.css', cwd)).toEqual([{ dir: join(cwd, 'src'), depth: 1 }]);
+  });
+
+  it('keeps the deepest depth for globs sharing a directory', () => {
+    expect(globWatchRoots(['src/*.css', 'src/*/*/x.css'], cwd)).toEqual([{ dir: join(cwd, 'src'), depth: 2 }]);
+    expect(globWatchRoots(['src/*.css', 'src/**/*.ts', 'src/*/x.css'], cwd)).toEqual([{ dir: join(cwd, 'src') }]);
   });
 });

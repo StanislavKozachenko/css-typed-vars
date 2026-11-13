@@ -310,6 +310,36 @@ describe('CLI --watch', () => {
     expect(output.stdout.match(/Generated/g)).toHaveLength(1);
   });
 
+  it('regenerates when an input file is edited, added or removed, and only then', async () => {
+    const { cwd, child, output } = await startWatch({
+      'styles/a.css': ':root { --a: 1; }',
+      'styles/vendor.css': ':root { --vendor: 1; }',
+      'styles/nested/deep.css': ':root { --deep: 1; }',
+    }, ['--input', 'styles/*.css', '--exclude', 'styles/vendor.css', '--output', 'vars.ts']);
+    const vars = () => readFile(join(cwd, 'vars.ts'), 'utf8');
+    try {
+      await writeFile(join(cwd, 'styles/a.css'), ':root { --a: 1; --a2: 1; }');
+      await waitFor(async () => (await vars()).includes('a2'));
+      expect(output.stdout).toContain('Changed: styles/a.css');
+      await writeFile(join(cwd, 'styles/b.css'), ':root { --b: 1; }');
+      await waitFor(async () => (await vars()).includes("b: 'var(--b)'"));
+      expect(output.stdout).toContain('Added: styles/b.css');
+      await rm(join(cwd, 'styles/b.css'));
+      await waitFor(async () => !(await vars()).includes("b: 'var(--b)'"));
+      expect(output.stdout).toContain('Removed: styles/b.css');
+      // Neither an excluded file nor one deeper than `styles/*.css` reaches triggers a run.
+      const runs = output.stdout.match(/Generated/g)!.length;
+      await writeFile(join(cwd, 'styles/vendor.css'), ':root { --vendor: 2; }');
+      await writeFile(join(cwd, 'styles/nested/deep.css'), ':root { --deep: 2; }');
+      await new Promise((r) => setTimeout(r, 500));
+      expect(output.stdout.match(/Generated/g)).toHaveLength(runs);
+      expect(output.stdout).not.toContain('vendor.css');
+      expect(output.stdout).not.toContain('deep.css');
+    } finally {
+      child.kill();
+    }
+  });
+
   it('regenerates with --prune when a usage file changes, ignoring its own output', async () => {
     const { cwd, child, output } = await startWatch({
       'styles/x.css': ':root { --u: 1; --v: 2; }',

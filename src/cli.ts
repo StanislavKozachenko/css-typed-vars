@@ -3,6 +3,7 @@ import { access, readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { watch } from 'chokidar';
+import { createFileMatcher, globWatchRoots } from './scanner.js';
 import { generate, checkGenerated, findUnusedVars, findUndefinedRefs, type Config, type FileReference } from './index.js';
 import { VALID_NAMINGS, type NamingConvention } from './generator.js';
 import { CONFIG_KEYS } from './config.js';
@@ -333,9 +334,14 @@ function watchTarget(target: Target): void {
       await regenerate();
     }
   };
+  // chokidar doesn't take globs: watch the directories they're rooted at, and
+  // react only to the files a scan would read.
+  const isInput = createFileMatcher(input!, exclude);
+  const isUsage = prune ? createFileMatcher(usage!, usageExclude) : () => false;
+  const isWatched = (file: string) => !outputs.has(resolve(file)) && (isInput(file) || isUsage(file));
   const makeHandler = (label: string) => (file: string) => {
-    if (outputs.has(resolve(file))) return;
-    console.log(`${label}: ${file}`);
+    if (!isWatched(file)) return;
+    console.log(`${label}: ${relative(process.cwd(), file).replace(/\\/g, '/')}`);
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
@@ -343,14 +349,18 @@ function watchTarget(target: Target): void {
     }, 100);
   };
 
-  const subscribe = (patterns: string[], ignored: string[]) => {
-    watch(patterns, { ignoreInitial: true, ...(ignored.length > 0 ? { ignored } : {}) })
+  const roots = globWatchRoots([...toArray(input), ...(prune ? toArray(usage) : [])]);
+  for (const { dir, depth } of roots) {
+    watch(dir, {
+      ignoreInitial: true,
+      depth,
+      // No need to watch a file that can't match; directories are still traversed.
+      ignored: (path, stats) => stats?.isFile() === true && !isWatched(path),
+    })
       .on('change', makeHandler('Changed'))
       .on('add', makeHandler('Added'))
       .on('unlink', makeHandler('Removed'));
-  };
-  subscribe(toArray(input), toArray(exclude));
-  if (prune) subscribe(toArray(usage), toArray(usageExclude));
+  }
 }
 
 async function main(): Promise<void> {

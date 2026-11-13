@@ -27,16 +27,35 @@ export function createFileMatcher(
   };
 }
 
+export interface WatchRoot {
+  /** Absolute directory a glob is rooted at. */
+  dir: string;
+  /** How many directory levels below `dir` a match can be (0: directly inside), or undefined for any. */
+  depth?: number;
+}
+
 // The static directory each glob is rooted at (`../shared/**/*.css` -> `../shared`),
 // absolute and deduplicated — what a watcher needs to cover to see every file
-// the globs can match, without relying on it supporting glob patterns.
-export function globBaseDirs(patterns: string | string[], cwd: string = process.cwd()): string[] {
-  const dirs = normalizePatterns(patterns).map((pattern) => {
-    const { base, isGlob } = picomatch.scan(pattern);
+// the globs can match, without relying on it supporting glob patterns — and
+// how deep below it a match can be (`styles/*.css` -> 0, `src/**/*.css` -> any),
+// so a watcher doesn't descend into directories that can't hold one (node_modules).
+export function globWatchRoots(patterns: string | string[], cwd: string = process.cwd()): WatchRoot[] {
+  const roots = new Map<string, number | undefined>();
+  for (const pattern of normalizePatterns(patterns)) {
+    const { base, glob, isGlob } = picomatch.scan(pattern);
     // A plain file path: watch its directory, so the file is seen even when it's created later.
-    return resolve(cwd, isGlob ? base || '.' : dirname(pattern));
-  });
-  return [...new Set(dirs)];
+    const dir = resolve(cwd, isGlob ? base || '.' : dirname(pattern));
+    // `**`, or a brace spanning directories (`{a/b,c}`), can match at any depth.
+    const depth = !isGlob ? 0 : /\*\*|\{[^}]*\//.test(glob) ? undefined : glob.split('/').length - 1;
+    const previous = roots.get(dir);
+    const unlimited = (roots.has(dir) && previous === undefined) || depth === undefined;
+    roots.set(dir, unlimited ? undefined : Math.max(previous ?? 0, depth));
+  }
+  return [...roots].map(([dir, depth]) => (depth === undefined ? { dir } : { dir, depth }));
+}
+
+export function globBaseDirs(patterns: string | string[], cwd: string = process.cwd()): string[] {
+  return globWatchRoots(patterns, cwd).map((root) => root.dir);
 }
 
 export interface ScannedCss {
