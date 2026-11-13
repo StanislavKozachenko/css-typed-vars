@@ -25,6 +25,8 @@ import { cssVars } from 'css-typed-vars/vars';
 
 In dev mode, adding, editing or removing a file matched by `input` (minus `exclude`) triggers a rescan and a full page reload automatically. Files outside the Vite root (`../shared/*.css` in a monorepo) are watched too. With `prune`, so does a change to a source file matched by `usage`, so a newly used variable shows up in the declaration file right away.
 
+In watch builds (`vite build --watch`, `rollup --watch`, `webpack --watch`, esbuild's `context.watch()`), editing a file matched by `input` (or, with `prune`, by `usage`) triggers a rebuild. A newly created file is picked up on the next rebuild.
+
 ## webpack
 
 ```js
