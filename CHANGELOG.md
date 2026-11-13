@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.11.0] - 2026-11-13
+
+### Added
+
+- ship a JSON Schema for the config file
+- warn about unknown keys in the config file
+
+### Fixed
+
+- rebuild watch builds when a scanned file changes
+
+### Changed
+
+- upgrade chokidar to v5 for --watch
+- add globWatchRoots with how deep each glob can match
+- document the config JSON Schema and unknown key warnings
+- extract the typo suggestion for reuse
+- mention rebuilds in watch builds
+- return the matched files from scanCss and scanUsage
+
+---
+
+
 ## [0.10.1] - 2026-11-12
 
 ### Fixed
