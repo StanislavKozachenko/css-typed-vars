@@ -239,6 +239,38 @@ describe('CLI with a single config', () => {
     expect(status).toBe(1);
     expect(stderr).toContain('css-typed-vars: invalid --naming value "shouty".');
   });
+
+  it('warns about unknown config keys, suggesting the closest option, and accepts $schema', async () => {
+    const { status, stderr } = await runCli({
+      'css-typed-vars.config.json': JSON.stringify({
+        $schema: './node_modules/css-typed-vars/schema.json',
+        input: 'x.css',
+        output: 'vars.ts',
+        Naming: 'snake',
+        colors: true,
+      }),
+      'x.css': ':root { --a: 1px; }',
+    }, []);
+    expect(status).toBe(0);
+    expect(stderr).toContain('css-typed-vars: unknown option "Naming" in the config file. Did you mean naming?');
+    expect(stderr).toContain('css-typed-vars: unknown option "colors" in the config file.\n');
+    expect(stderr).not.toContain('$schema');
+  });
+});
+
+describe('CLI with an array config and an unknown key', () => {
+  it('warns per target', async () => {
+    const { status, stderr } = await runCli({
+      'css-typed-vars.config.json': JSON.stringify([
+        { input: 'x.css', output: 'a.ts' },
+        { input: 'x.css', output: 'b.ts', prunes: true },
+      ]),
+      'x.css': ':root { --a: 1px; }',
+    }, []);
+    expect(status).toBe(0);
+    expect(stderr).toContain('css-typed-vars [b.ts]: unknown option "prunes" in the config file. Did you mean prune?');
+    expect(stderr).not.toContain('[a.ts]');
+  });
 });
 
 describe('CLI --watch', () => {

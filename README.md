@@ -217,6 +217,18 @@ export default defineConfig({
 });
 ```
 
+For a JSON config, point `$schema` at the bundled JSON Schema to get the same autocompletion and validation in your editor:
+
+```json
+{
+  "$schema": "./node_modules/css-typed-vars/schema.json",
+  "input": "src/styles/**/*.css",
+  "output": "src/cssVars.ts"
+}
+```
+
+An unknown key in any config file (a typo like `"ouput"`) is reported as a warning, with the closest option suggested.
+
 #### Multiple targets
 
 Export an array to generate several files in one run — e.g. one per package in a monorepo, or a TypeScript file plus a design tokens file:
@@ -241,6 +253,8 @@ export default [
 No file is generated — CSS variables are served as a virtual module directly by your bundler. Import from `css-typed-vars/vars` in your source code.
 
 TypeScript types are written to `node_modules/css-typed-vars/dist/generated.d.ts` automatically on each build or dev server start.
+
+In watch builds (`vite build --watch`, `rollup --watch`, `webpack --watch`, esbuild's `context.watch()`), editing a scanned CSS file triggers a rebuild.
 
 ### Vite
 
