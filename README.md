@@ -217,6 +217,18 @@ export default defineConfig({
 });
 ```
 
+For a JSON config, point `$schema` at the bundled JSON Schema to get the same autocompletion and validation in your editor:
+
+```json
+{
+  "$schema": "./node_modules/css-typed-vars/schema.json",
+  "input": "src/styles/**/*.css",
+  "output": "src/cssVars.ts"
+}
+```
+
+An unknown key in any config file (a typo like `"ouput"`) is reported as a warning, with the closest option suggested.
+
 #### Multiple targets
 
 Export an array to generate several files in one run — e.g. one per package in a monorepo, or a TypeScript file plus a design tokens file:
