@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, parseVarReferences, parseDeclaredNames } from '../parser.js';
+import { parseVarNames, parseVarDeclarations, parsePropertyRules, parseThemedDeclarations, parseVarReferences, parseDeclaredNames, parseSourceVarReferences, parseSourceDeclaredNames } from '../parser.js';
 
 describe('parseVarNames', () => {
   it('extracts custom properties from :root block', () => {
@@ -426,5 +426,40 @@ describe('parsePropertyRules', () => {
   it('does not confuse a descriptor name that is a substring of a longer token', () => {
     const css = `@property --x { syntax: '<color>'; -my-inherits: true; }`;
     expect(parsePropertyRules(css).get('--x')?.inherits).toBeUndefined();
+  });
+});
+
+describe('parseSourceVarReferences', () => {
+  const names = (text: string) => parseSourceVarReferences(text).map((ref) => ref.name);
+
+  it('finds var() references inside strings, template literals and class names', () => {
+    expect(names(`<div style={{ color: 'var(--a)', margin: \`var(--b)\` }} className="bg-[var(--c)]" />`)).toEqual(['--a', '--b', '--c']);
+  });
+
+  it('finds the Tailwind v4 shorthand, with or without a type hint', () => {
+    expect(names('<p class="bg-(--brand) hover:text-(length:--size)">')).toEqual(['--brand', '--size']);
+  });
+
+  it("doesn't mistake a decrement for the shorthand", () => {
+    expect(names('const y = a -(--i); const z = f(--j);')).toEqual([]);
+  });
+
+  it('flags fallbacks and reports 1-based positions', () => {
+    expect(parseSourceVarReferences("const a = 1;\nconst s = { gap: 'var( --gap , 4px)' };")).toEqual([
+      { name: '--gap', hasFallback: true, line: 2, column: 19 },
+    ]);
+  });
+});
+
+describe('parseSourceDeclaredNames', () => {
+  it('finds object keys, style attributes, setProperty calls and Tailwind arbitrary properties', () => {
+    const text = `const s = { '--a': 1, "--b": 2 };
+<div style="--c: 4px; color: var(--x)" class="[--d:4px]" />
+el.style.setProperty('--e', '1px');`;
+    expect([...parseSourceDeclaredNames(text)].sort()).toEqual(['--a', '--b', '--c', '--d', '--e']);
+  });
+
+  it("doesn't count a reference as a declaration", () => {
+    expect([...parseSourceDeclaredNames("const s = { color: 'var(--x)', gap: 'var(--y, 1px)' };")]).toEqual([]);
   });
 });

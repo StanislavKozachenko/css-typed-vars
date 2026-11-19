@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, posix, relative, resolve } from 'node:path';
 import picomatch from 'picomatch';
 import { glob } from 'tinyglobby';
-import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
+import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, parseSourceVarReferences, parseSourceDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
@@ -265,11 +265,16 @@ export interface FileReference extends VarReference {
 }
 
 // Reads every matched CSS file once, returning all `var()` references (with
-// their file) and every custom property name declared across the files.
+// their file) and every custom property name declared across the files. With
+// `source`, the files are source code (TS/JSX, Vue, HTML, ...) instead, read
+// with parseSourceVarReferences / parseSourceDeclaredNames.
 export async function scanReferences(
   patterns: string | string[],
   exclude?: string | string[],
+  source = false,
 ): Promise<{ references: FileReference[]; declared: Set<string> }> {
+  const parseReferences = source ? parseSourceVarReferences : parseVarReferences;
+  const parseDeclared = source ? parseSourceDeclaredNames : parseDeclaredNames;
   const files = (await findFiles(patterns, exclude)).sort();
   const perFile = await Promise.all(
     files.map(async (file) => {
@@ -285,8 +290,8 @@ export async function scanReferences(
   const declared = new Set<string>();
   for (const result of perFile) {
     if (!result) continue;
-    for (const ref of parseVarReferences(result.css)) references.push({ ...ref, file: result.file });
-    for (const name of parseDeclaredNames(result.css)) declared.add(name);
+    for (const ref of parseReferences(result.css)) references.push({ ...ref, file: result.file });
+    for (const name of parseDeclared(result.css)) declared.add(name);
   }
   return { references, declared };
 }

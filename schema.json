@@ -77,6 +77,10 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Names (or --prefix-* patterns) that --lint-refs shouldn't report, e.g. vars set from JS."
+        },
+        "refsSource": {
+          "$ref": "#/definitions/globs",
+          "description": "Glob(s) of source files (TS/JSX, Vue, HTML, ...) whose var(--name) references --lint-refs checks too."
         }
       }
     }

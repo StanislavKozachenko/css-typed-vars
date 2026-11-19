@@ -144,6 +144,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Doesn't need `--output`. Useful in CI. |
 | `--lint-refs` | Report `var(--name)` references to variables not declared anywhere in the input; exits 1 if any (without a fallback) are found — see [Linting var() references](#linting-var-references) |
 | `--refs-ignore` | Name or `--prefix-*` pattern for `--lint-refs` to skip (repeatable) |
+| `--refs-source` | Source files whose `var()` references `--lint-refs` checks too (repeatable) — see [below](#in-source-files) |
 | `--usage` | Glob of source files to scan for `cssVars` usage, for `--prune`/`--prune-check` (repeatable) |
 | `--usage-exclude` | Glob of source files to exclude from the usage scan (repeatable) |
 | `--watch` | Watch the `input` files (and, with `--prune`, the `--usage` files) and regenerate on change |
@@ -183,6 +184,24 @@ css-typed-vars: 2 reference(s) to undeclared variables:
 - References inside comments and strings are ignored; positions point to the original file.
 - Variables set from JavaScript or defined by another stylesheet you don't scan can be skipped with `--refs-ignore` (repeatable, a trailing `*` matches a prefix): `--refs-ignore "--tw-*" --refs-ignore --app-height`, or `refsIgnore` in the config file.
 
+#### In source files
+
+`var(--name)` strings in components are just as easy to get wrong. Add `--refs-source` (repeatable, or `refsSource` in the config file) to check them against the same declarations:
+
+```sh
+npx css-typed-vars --input "src/**/*.css" --lint-refs --refs-source "src/**/*.{ts,tsx,vue,html}"
+```
+
+```
+css-typed-vars: 1 reference(s) to undeclared variables:
+  src/Card.tsx:14:22  var(--colr-primary)
+```
+
+- Finds `var(--name)` anywhere in the file — in strings, template literals, Tailwind classes like `bg-[var(--brand)]` — and Tailwind v4's `bg-(--brand)` shorthand.
+- Variables a source file sets itself count as declared: an object key (`{ '--gap': '4px' }`), a `style` attribute (`style="--gap: 4px"`), `setProperty('--gap', ...)` or a Tailwind arbitrary property (`[--gap:4px]`). This applies to the CSS references too.
+- Like the `--prune` usage scan, this is textual: a reference inside a comment counts too.
+- The target's own output file is skipped even if the glob matches it — `--check` is what tells whether it's stale.
+
 ### Config file
 
 The CLI looks for a config file in the current working directory (in order):
@@ -212,6 +231,7 @@ export default defineConfig({
   group: false,
   helpers: false,
   refsIgnore: ['--tw-*'],
+  refsSource: 'src/**/*.{ts,tsx}',
   prune: false,
   usage: 'src/**/*.{ts,tsx}',
 });
@@ -439,7 +459,7 @@ await generate({
 
 `checkGenerated(options)` takes the same options and returns `Promise<boolean>` — `true` if the existing output already matches what would be generated, without writing anything. Same thing `--check` does on the CLI.
 
-`findUndefinedRefs({ input, exclude?, refsIgnore? })` returns `Promise<FileReference[]>` — each undeclared `var()` reference with its `file`, `line`, `column` and `hasFallback`. Same thing `--lint-refs` does on the CLI.
+`findUndefinedRefs({ input, exclude?, refsIgnore?, refsSource? })` returns `Promise<FileReference[]>` — each undeclared `var()` reference with its `file`, `line`, `column` and `hasFallback`. Same thing `--lint-refs` does on the CLI.
 
 `findUnusedVars(options)` takes `input`/`exclude`/`selectors`/`prefix`/`naming`/`group`/`usage`/`usageExclude` and returns `Promise<string[]>` — the CSS variable names with no detected `cssVars.<key>` usage, without writing or pruning anything. Same thing `--prune-check` does on the CLI.
 
