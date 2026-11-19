@@ -33,7 +33,7 @@ const lintRefsMode = args.includes('--lint-refs');
 // ambiguous which target they'd apply to.
 const OPTION_FLAGS = [
   '--input', '--output', '--exclude', '--prefix', '--naming', '--selector', '--theme',
-  '--group', '--prune', '--usage', '--usage-exclude', '--helpers', '--refs-ignore',
+  '--group', '--prune', '--usage', '--usage-exclude', '--helpers', '--refs-ignore', '--refs-source',
 ];
 
 const USAGE = 'Usage: css-typed-vars --input <glob> --output <file> [options]';
@@ -42,7 +42,7 @@ const USAGE = 'Usage: css-typed-vars --input <glob> --output <file> [options]';
 // (`--refs-ignore --app-height`), so it's skipped when looking for unknown flags.
 const VALUE_FLAGS = [
   '--input', '--output', '--exclude', '--prefix', '--naming', '--selector', '--theme',
-  '--usage', '--usage-exclude', '--refs-ignore', '--config',
+  '--usage', '--usage-exclude', '--refs-ignore', '--refs-source', '--config',
 ];
 const BOOLEAN_FLAGS = [
   '--group', '--prune', '--helpers', '--watch', '--check', '--prune-check', '--lint-refs',
@@ -75,6 +75,7 @@ Modes:
   --prune-check           Exit 1 if any var has no cssVars.<key> usage (needs --usage)
   --lint-refs             Exit 1 on var() references to undeclared variables
   --refs-ignore <name>    Name or --prefix-* pattern for --lint-refs to skip (repeatable)
+  --refs-source <glob>    Source files whose var() references --lint-refs checks too (repeatable)
   --version, -v           Print the version
   --help, -h              Print this help
 
@@ -187,6 +188,7 @@ function applyFlags(config: Config): Config {
   const usageArgs = getArgs('--usage');
   const usageExcludeArgs = getArgs('--usage-exclude');
   const refsIgnoreArgs = getArgs('--refs-ignore');
+  const refsSourceArgs = getArgs('--refs-source');
   return {
     ...config,
     input: inputArgs.length > 0 ? inputArgs : config.input,
@@ -204,6 +206,7 @@ function applyFlags(config: Config): Config {
     usageExclude: usageExcludeArgs.length > 0 ? usageExcludeArgs : config.usageExclude,
     helpers: args.includes('--helpers') || config.helpers,
     refsIgnore: refsIgnoreArgs.length > 0 ? refsIgnoreArgs : config.refsIgnore,
+    refsSource: refsSourceArgs.length > 0 ? refsSourceArgs : config.refsSource,
   };
 }
 
@@ -262,10 +265,21 @@ function validateTarget({ options, tag }: Target, single: boolean): void {
   }
 }
 
+// The files a target writes, absolute: its output, plus the `.d.ts` next to a JS output.
+function outputPaths(output: string | undefined): Set<string> {
+  if (!output) return new Set();
+  const jsExt = /\.(m|c)?js$/i.exec(output);
+  return new Set([output, ...(jsExt ? [output.slice(0, -jsExt[0].length) + '.d.ts'] : [])].map((path) => resolve(path)));
+}
+
 // Each mode runs for one target and resolves to whether it passed.
 
 async function lintRefs({ options, tag }: Target): Promise<boolean> {
-  const refs = await findUndefinedRefs({ input: options.input!, exclude: options.exclude, refsIgnore: options.refsIgnore });
+  const { input, exclude, refsIgnore, refsSource } = options;
+  // A `refsSource` glob may match the generated file, whose references are only as fresh as its last run.
+  const outputs = outputPaths(options.output);
+  const refs = (await findUndefinedRefs({ input: input!, exclude, refsIgnore, refsSource }))
+    .filter((ref) => !outputs.has(resolve(ref.file)));
   const format = (ref: FileReference) => `  ${relative(process.cwd(), ref.file).replace(/\\/g, '/')}:${ref.line}:${ref.column}  var(${ref.name}${ref.hasFallback ? ', …' : ''})`;
   const errors = refs.filter((ref) => !ref.hasFallback);
   const warnings = refs.filter((ref) => ref.hasFallback);
@@ -315,8 +329,7 @@ const toArray = (value: string | string[] | undefined): string[] =>
 function watchTarget(target: Target): void {
   const { input, exclude, output, prune, usage, usageExclude } = target.options;
   // The generated files themselves: a `usage` glob may well match them (`src/**/*.ts`).
-  const jsExt = /\.(m|c)?js$/i.exec(output!);
-  const outputs = new Set([output!, ...(jsExt ? [output!.slice(0, -jsExt[0].length) + '.d.ts'] : [])].map((path) => resolve(path)));
+  const outputs = outputPaths(output);
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running = false;

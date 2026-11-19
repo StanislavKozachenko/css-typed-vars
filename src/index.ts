@@ -34,6 +34,11 @@ export interface GenerateOptions {
   helpers?: boolean;
   /** Names (or `--prefix-*` patterns) that `findUndefinedRefs` shouldn't report, e.g. vars set from JS. */
   refsIgnore?: string[];
+  /**
+   * Glob(s) of source files (TS/JSX, Vue, HTML, ...) whose `var(--name)` references
+   * (and Tailwind `bg-(--name)` shorthands) `findUndefinedRefs` also checks.
+   */
+  refsSource?: string | string[];
 }
 
 /** A CLI config file's options — like `GenerateOptions`, but anything may come from CLI flags instead. */
@@ -68,15 +73,21 @@ function matchesIgnore(name: string, patterns: string[]): boolean {
   return patterns.some((pattern) => (pattern.endsWith('*') ? name.startsWith(pattern.slice(0, -1)) : name === pattern));
 }
 
-// Finds `var(--name)` references in the input CSS whose `--name` isn't declared
-// anywhere in the input (any block, or an `@property` rule). References with a
+// Finds `var(--name)` references in the input CSS — and, with `refsSource`, in
+// source files — whose `--name` isn't declared anywhere in the input (any block,
+// or an `@property` rule) nor set by a source file itself. References with a
 // fallback are included too, flagged with `hasFallback`. Backs `--lint-refs`.
 export async function findUndefinedRefs(
-  options: Pick<GenerateOptions, 'input' | 'exclude' | 'refsIgnore'>,
+  options: Pick<GenerateOptions, 'input' | 'exclude' | 'refsIgnore' | 'refsSource'>,
 ): Promise<FileReference[]> {
-  const { references, declared } = await scanReferences(options.input, options.exclude);
+  const [css, source] = await Promise.all([
+    scanReferences(options.input, options.exclude),
+    options.refsSource ? scanReferences(options.refsSource, undefined, true) : null,
+  ]);
+  const declared = new Set([...css.declared, ...(source?.declared ?? [])]);
   const ignore = options.refsIgnore ?? [];
-  return references.filter((ref) => !declared.has(ref.name) && !matchesIgnore(ref.name, ignore));
+  return [...css.references, ...(source?.references ?? [])]
+    .filter((ref) => !declared.has(ref.name) && !matchesIgnore(ref.name, ignore));
 }
 
 interface ComputedOutput {
