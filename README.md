@@ -461,6 +461,8 @@ By default, variables are scanned from `:root {}` blocks (including attribute se
 
 ## Theme values
 
+When a variable is declared in several files, the last file read wins. Files are read in `input` order (a file matched by several globs counts at the last one), and within a glob a directory's files come before its subdirectories', alphabetically — so `styles/themes/dark.css` overrides `styles/tokens.css`.
+
 By default, a variable redeclared in another block (`:root[data-theme="dark"]`, or a `selectors` entry) simply overwrites its `@default` value — last one wins. The `themes` option names those blocks instead, so each theme's value is kept separately:
 
 ```js
