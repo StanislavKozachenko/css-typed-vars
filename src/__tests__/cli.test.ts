@@ -24,7 +24,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await rm(dir, { recursive: true });
+  // On Windows, a just-killed --watch process can hold its directory for a moment (EBUSY).
+  await rm(dir, { recursive: true, maxRetries: 10, retryDelay: 100 });
 });
 
 // Runs the CLI in a fresh project directory containing the given files.
