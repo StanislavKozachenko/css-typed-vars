@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.12.0] - 2026-11-19
+
+### Added
+
+- check var() references in --refs-source files with --lint-refs
+- scan source files for var() references
+- find var() references and set variables in source files
+
+### Changed
+
+- document --refs-source
+- describe which file wins for a variable declared in several
+- replace fast-glob with tinyglobby, reading files in a defined order
+
+---
+
+
 ## [0.11.0] - 2026-11-13
 
 ### Added
