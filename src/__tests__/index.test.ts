@@ -401,6 +401,29 @@ describe('findUndefinedRefs', () => {
     await writeFile(join(cssDir, 'a.css'), ':root { --a: 1px; --b: var(--a); }');
     expect(await findUndefinedRefs({ input: `${cssDir}/*.css` })).toEqual([]);
   });
+
+  it('also checks references in refsSource files, counting the names they set as declared', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const root = join(dir, 'refs-source');
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'a.css'), ':root { --color-primary: red; } .card { gap: var(--card-gap); }');
+    await writeFile(join(root, 'src', 'Card.tsx'), [
+      "<div style={{ '--card-gap': '4px' }} />;",
+      "<p style={{ color: 'var(--color-primary)', margin: 'var(--colr-primary)' }} />;",
+      '<b className="bg-(--tw-ring) text-[var(--missing,red)]" />;',
+    ].join('\n'));
+    const input = `${root}/*.css`.replace(/\\/g, '/');
+    const refsSource = `${root}/src/**/*.tsx`.replace(/\\/g, '/');
+
+    const refs = await findUndefinedRefs({ input, refsSource, refsIgnore: ['--tw-*'] });
+    expect(refs.map(({ name, hasFallback, line, column }) => ({ name, hasFallback, line, column }))).toEqual([
+      { name: '--colr-primary', hasFallback: false, line: 2, column: 53 },
+      { name: '--missing', hasFallback: true, line: 3, column: 36 },
+    ]);
+    expect(refs[0].file.replace(/\\/g, '/')).toMatch(/src\/Card\.tsx$/);
+    // Without refsSource, the CSS reference to the variable set from the component is reported.
+    expect((await findUndefinedRefs({ input })).map((ref) => ref.name)).toEqual(['--card-gap']);
+  });
 });
 
 describe('checkGenerated', () => {
