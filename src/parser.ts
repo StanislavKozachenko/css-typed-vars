@@ -428,6 +428,40 @@ export function parseVarReferences(css: string): VarReference[] {
   return refs;
 }
 
+// `var(--name)` — or Tailwind v4's `bg-(--name)` / `bg-(color:--name)` shorthand.
+const SOURCE_REF_RE = /\bvar\(\s*(--[\w-]+)\s*(,)?|(?<=[\w-]-)\((?:[\w-]+:)?(--[\w-]+)\)/g;
+
+// Every `var(--name)` reference in a source file (TS/JSX, Vue, HTML, ...), and
+// every Tailwind `bg-(--name)` shorthand. Textual, unlike parseVarReferences:
+// in source code these references live inside strings, so strings aren't
+// skipped — and neither are comments. Positions point to `var(` / `(`.
+export function parseSourceVarReferences(text: string): VarReference[] {
+  const lineStarts = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === '\n') lineStarts.push(i + 1);
+  const refs: VarReference[] = [];
+  for (const match of text.matchAll(SOURCE_REF_RE)) {
+    let line = lineStarts.length - 1;
+    while (lineStarts[line] > match.index) line--;
+    refs.push({
+      name: match[1] ?? match[3],
+      hasFallback: match[2] === ',',
+      line: line + 1,
+      column: match.index - lineStarts[line] + 1,
+    });
+  }
+  return refs;
+}
+
+// Custom properties a source file sets itself: as an object key (`'--gap': 4`,
+// `{ "--gap": ... }`), in a `style` attribute (`style="--gap: 4px"`), or with
+// `setProperty('--gap', ...)`. Textual, like parseSourceVarReferences.
+export function parseSourceDeclaredNames(text: string): Set<string> {
+  const names = new Set<string>();
+  for (const match of text.matchAll(/(?<![\w-])(--[\w-]+)['"`]?\s*:/g)) names.add(match[1]);
+  for (const match of text.matchAll(/\bsetProperty\(\s*['"`](--[\w-]+)['"`]/g)) names.add(match[1]);
+  return names;
+}
+
 // Every custom property name declared anywhere in css — in any block, not just
 // the scanned selectors — plus every `@property`-registered name.
 export function parseDeclaredNames(css: string): Set<string> {

@@ -56,7 +56,7 @@ if (unused.length > 0) {
 
 ## findUndefinedRefs
 
-`findUndefinedRefs({ input, exclude?, refsIgnore? })` returns `Promise<FileReference[]>` — every `var(--name)` reference in the input whose `--name` isn't declared anywhere in it, with `file`, `line`, `column` and `hasFallback`. This is what `--lint-refs` does on the CLI — see [Linting var() references](/guide/cli#linting-var-references).
+`findUndefinedRefs({ input, exclude?, refsIgnore?, refsSource? })` returns `Promise<FileReference[]>` — every `var(--name)` reference in the input whose `--name` isn't declared anywhere in it, with `file`, `line`, `column` and `hasFallback`. With `refsSource`, `var()` references in those source files are checked too. This is what `--lint-refs` does on the CLI — see [Linting var() references](/guide/cli#linting-var-references).
 
 ```ts
 import { findUndefinedRefs } from 'css-typed-vars';

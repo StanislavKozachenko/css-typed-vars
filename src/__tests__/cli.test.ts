@@ -235,6 +235,20 @@ describe('CLI with a single config', () => {
     expect(noInput.stderr).toContain('css-typed-vars: --prune-check requires --input <glob>');
   });
 
+  it('lints references in --refs-source files, skipping its own output', async () => {
+    const { status, stderr } = await runCli({
+      'css-typed-vars.config.json': JSON.stringify({ input: 'a/*.css', output: 'src/vars.ts' }),
+      'a/x.css': ':root { --a: 1px; }',
+      'src/App.tsx': "const s = { color: 'var(--a)', gap: 'var(--typo)' };",
+      // A stale output referencing a variable that was since removed.
+      'src/vars.ts': "export const cssVars = { gone: 'var(--gone)' } as const;",
+    }, ['--lint-refs', '--refs-source', 'src/**/*.tsx', '--refs-source', 'src/**/*.ts']);
+    expect(status).toBe(1);
+    expect(stderr).toContain('css-typed-vars: 1 reference(s) to undeclared variables:');
+    expect(stderr).toMatch(/src\/App\.tsx:1:38 {2}var\(--typo\)/);
+    expect(stderr).not.toContain('--gone');
+  });
+
   it('rejects an invalid --naming value', async () => {
     const { status, stderr } = await runCli({}, ['--input', 'x.css', '--output', 'vars.ts', '--naming', 'shouty']);
     expect(status).toBe(1);

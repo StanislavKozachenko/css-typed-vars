@@ -1,11 +1,62 @@
 import { readFile } from 'node:fs/promises';
-import { dirname, relative, resolve } from 'node:path';
-import fg from 'fast-glob';
+import { dirname, posix, relative, resolve } from 'node:path';
 import picomatch from 'picomatch';
-import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
+import { glob } from 'tinyglobby';
+import { parseThemedDeclarations, parsePropertyRules, parseVarReferences, parseDeclaredNames, parseSourceVarReferences, parseSourceDeclaredNames, type PropertyRule, type VarDoc, type VarReference } from './parser.js';
 
 function normalizePatterns(patterns: string | string[]): string[] {
   return (Array.isArray(patterns) ? patterns : [patterns]).map((p) => p.replace(/\\/g, '/'));
+}
+
+// Orders a glob's matches: a directory's files before its subdirectories',
+// each alphabetically — so `styles/tokens.css` comes before `styles/themes/dark.css`.
+function comparePaths(a: string, b: string): number {
+  const as = a.split('/');
+  const bs = b.split('/');
+  for (let i = 0; i < Math.min(as.length, bs.length); i++) {
+    if (as[i] === bs[i]) continue;
+    const aIsFile = i === as.length - 1;
+    const bIsFile = i === bs.length - 1;
+    if (aIsFile !== bIsFile) return aIsFile ? -1 : 1;
+    return as[i] < bs[i] ? -1 : 1;
+  }
+  return as.length - bs.length;
+}
+
+// Ignore globs are matched against a path in the same form as the glob that
+// found it: relative to the working directory, or absolute for an absolute
+// glob — so `**/vendor/**` excludes from `/abs/styles/**/*.css` too.
+async function globFiles(pattern: string, ignore: string[]): Promise<string[]> {
+  if (!/^(?:[A-Za-z]:)?\//.test(pattern)) {
+    return glob(pattern, { absolute: true, ignore, expandDirectories: false });
+  }
+  // tinyglobby would walk from the working directory and match the absolute
+  // glob against real directory names, missing one written through a Windows
+  // 8.3 short name (`C:/Users/LONGNA~1/...`, as os.tmpdir() returns): walk
+  // from the glob's static base instead, and apply the ignore globs here.
+  const { base, glob: rest, isGlob } = picomatch.scan(pattern);
+  const [cwd, relativeGlob] = isGlob ? [base, rest] : [posix.dirname(pattern), posix.basename(pattern)];
+  const matches = await glob(relativeGlob, { cwd, absolute: true, expandDirectories: false });
+  if (ignore.length === 0) return matches;
+  const isIgnored = picomatch(ignore, { dot: true });
+  return matches.filter((file) => !isIgnored(file));
+}
+
+// The files the globs match, absolute, in the order they're read — which
+// decides the value that wins for a variable declared in several files: globs
+// in the given order (a file matched again by a later glob moves there), and
+// each glob's matches ordered by comparePaths. Negated globs (`!vendor/**`)
+// exclude files from all of them, like `exclude`.
+export async function findFiles(patterns: string | string[], exclude?: string | string[]): Promise<string[]> {
+  const normalized = normalizePatterns(patterns);
+  const ignore = [
+    ...(exclude ? normalizePatterns(exclude) : []),
+    ...normalized.filter((p) => p.startsWith('!')).map((p) => p.slice(1)),
+  ];
+  const perGlob = await Promise.all(normalized.filter((p) => !p.startsWith('!')).map((p) => globFiles(p, ignore)));
+  const files = perGlob.flatMap((matches) => matches.sort(comparePaths));
+  // Keep each file's last occurrence.
+  return [...new Set(files.reverse())].reverse();
 }
 
 // Builds a predicate telling whether a file (absolute, or relative to `cwd`)
@@ -79,9 +130,9 @@ export function collectVarNames(scanned: ScannedCss): string[] {
   return [...names].sort();
 }
 
-// Reads are run concurrently for speed, but merged sequentially in fast-glob's
-// (deterministic) file order, so a name declared in multiple files always
-// resolves to the same "last file wins" value regardless of I/O timing. Each
+// Reads are run concurrently for speed, but merged sequentially in findFiles'
+// order, so a name declared in multiple files always resolves to the same
+// "last file wins" value regardless of I/O timing. Each
 // matched file is read exactly once and parsed for both declarations and
 // @property rules, so callers needing both never double up on file I/O.
 export async function scanCss(
@@ -90,9 +141,7 @@ export async function scanCss(
   selectors?: string[],
   themes: Record<string, string> = {},
 ): Promise<ScannedCss> {
-  const normalized = normalizePatterns(patterns);
-  const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
-  const files = await fg(normalized, { absolute: true, ignore: normalizedExclude });
+  const files = await findFiles(patterns, exclude);
   const perFile = await Promise.all(
     files.map(async (file) => {
       let css: string;
@@ -194,9 +243,7 @@ function extractUsage(text: string, into: CssVarsUsage): void {
 // one and two levels deep (the latter for grouped output). Backs the
 // `prune`/`pruneCheck` unused-variable features.
 export async function scanUsage(patterns: string | string[], exclude?: string | string[]): Promise<CssVarsUsage> {
-  const normalized = normalizePatterns(patterns);
-  const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
-  const files = await fg(normalized, { absolute: true, ignore: normalizedExclude });
+  const files = await findFiles(patterns, exclude);
   const usage: CssVarsUsage = { keys: new Set(), wholeKeys: new Set(), paths: new Set(), files };
   const texts = await Promise.all(
     files.map(async (file) => {
@@ -218,14 +265,17 @@ export interface FileReference extends VarReference {
 }
 
 // Reads every matched CSS file once, returning all `var()` references (with
-// their file) and every custom property name declared across the files.
+// their file) and every custom property name declared across the files. With
+// `source`, the files are source code (TS/JSX, Vue, HTML, ...) instead, read
+// with parseSourceVarReferences / parseSourceDeclaredNames.
 export async function scanReferences(
   patterns: string | string[],
   exclude?: string | string[],
+  source = false,
 ): Promise<{ references: FileReference[]; declared: Set<string> }> {
-  const normalized = normalizePatterns(patterns);
-  const normalizedExclude = exclude ? normalizePatterns(exclude) : [];
-  const files = (await fg(normalized, { absolute: true, ignore: normalizedExclude })).sort();
+  const parseReferences = source ? parseSourceVarReferences : parseVarReferences;
+  const parseDeclared = source ? parseSourceDeclaredNames : parseDeclaredNames;
+  const files = (await findFiles(patterns, exclude)).sort();
   const perFile = await Promise.all(
     files.map(async (file) => {
       try {
@@ -240,8 +290,8 @@ export async function scanReferences(
   const declared = new Set<string>();
   for (const result of perFile) {
     if (!result) continue;
-    for (const ref of parseVarReferences(result.css)) references.push({ ...ref, file: result.file });
-    for (const name of parseDeclaredNames(result.css)) declared.add(name);
+    for (const ref of parseReferences(result.css)) references.push({ ...ref, file: result.file });
+    for (const name of parseDeclared(result.css)) declared.add(name);
   }
   return { references, declared };
 }
