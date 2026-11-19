@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher, globBaseDirs, globWatchRoots } from '../scanner.js';
+import { scanVarNames, scanVarDeclarations, scanUsedKeys, scanUsage, scanCss, createFileMatcher, globBaseDirs, globWatchRoots, findFiles } from '../scanner.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -366,5 +366,43 @@ describe('globWatchRoots', () => {
   it('keeps the deepest depth for globs sharing a directory', () => {
     expect(globWatchRoots(['src/*.css', 'src/*/*/x.css'], cwd)).toEqual([{ dir: join(cwd, 'src'), depth: 2 }]);
     expect(globWatchRoots(['src/*.css', 'src/**/*.ts', 'src/*/x.css'], cwd)).toEqual([{ dir: join(cwd, 'src') }]);
+  });
+});
+
+describe('findFiles', () => {
+  let root: string;
+  // Absolute glob for a path under root, with forward slashes.
+  const at = (path: string) => join(root, path).replace(/\\/g, '/');
+  const names = (files: string[]) => files.map((file) => file.slice(at('').length + 1));
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'css-typed-vars-order-'));
+    await mkdir(join(root, 'themes', 'vendor'), { recursive: true });
+    for (const file of ['tokens.css', 'b.css', 'themes/dark.css', 'themes/vendor/v.css']) {
+      await writeFile(join(root, file), ':root { --x: 1; }');
+    }
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true });
+  });
+
+  it("orders a directory's files before its subdirectories', alphabetically", async () => {
+    expect(names(await findFiles(at('**/*.css')))).toEqual(['b.css', 'tokens.css', 'themes/dark.css', 'themes/vendor/v.css']);
+  });
+
+  it('keeps glob order, moving a file matched again to the later glob', async () => {
+    expect(names(await findFiles([at('themes/*.css'), at('*.css')]))).toEqual(['themes/dark.css', 'b.css', 'tokens.css']);
+    expect(names(await findFiles([at('*.css'), at('b.css')]))).toEqual(['tokens.css', 'b.css']);
+  });
+
+  it('applies negated globs and exclude to every glob, including an absolute one', async () => {
+    expect(names(await findFiles([at('**/*.css'), '!**/vendor/**']))).toEqual(['b.css', 'tokens.css', 'themes/dark.css']);
+    expect(names(await findFiles(at('**/*.css'), ['**/themes/**', at('b.css')]))).toEqual(['tokens.css']);
+  });
+
+  it('lets a variable in a nested file override one declared above it', async () => {
+    await writeFile(join(root, 'themes', 'dark.css'), ':root { --x: 2; }');
+    expect((await scanCss(at('**/*.css'), '**/vendor/**')).declarations.get('--x')).toBe('2');
   });
 });
