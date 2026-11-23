@@ -569,6 +569,40 @@ describe('runtime helpers (helpers: true)', () => {
       rmSync(dir, { recursive: true });
     }
   });
+
+  it('returns the property name at runtime', () => {
+    const js = generateJs(['--color-primary', '--gap'], { helpers: true });
+    const { varName, cssVars } = new Function(js.replace(/^export /gm, '') + '\nreturn { varName, cssVars };')();
+    expect(varName(cssVars.colorPrimary)).toBe('--color-primary');
+    expect(varName(cssVars.gap)).toBe('--gap');
+  });
+
+  it('emits varName in TS, JS and .d.ts output', () => {
+    const names = ['--color-primary'];
+    expect(generateCode(names, { helpers: true })).toContain('export function varName<R extends CssVarRef>(ref: R): CssVarProperty<R> {');
+    expect(generateJs(names, { helpers: true })).toContain('export function varName(ref) {');
+    expect(generateDeclaration(names, { helpers: true })).toContain('export declare function varName<R extends CssVarRef>(ref: R): CssVarProperty<R>;');
+  });
+
+  it('types the varName result as a precise literal', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'css-typed-vars-var-name-'));
+    try {
+      writeFileSync(join(dir, 'vars.ts'), generateCode(['--color-primary', '--gap'], { helpers: true, group: true }));
+      writeFileSync(join(dir, 'use.ts'), [
+        "import { cssVars, varName } from './vars';",
+        "export const a: '--color-primary' = varName(cssVars.color.primary);",
+        "export const style: Record<'--gap', string> = { [varName(cssVars.gap)]: '4px' };",
+        "export const wrong: '--color-primary' = varName(cssVars.gap);",
+        '',
+      ].join('\n'));
+      const program = ts.createProgram([join(dir, 'use.ts')], { strict: true, noEmit: true, types: [], target: ts.ScriptTarget.ES2020, lib: ['lib.es2020.d.ts', 'lib.dom.d.ts'] });
+      const errors = ts.getPreEmitDiagnostics(program).map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain(`Type '"--gap"' is not assignable to type '"--color-primary"'`);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
 });
 
 
