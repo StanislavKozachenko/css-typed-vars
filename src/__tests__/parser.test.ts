@@ -230,6 +230,14 @@ describe('parseVarDeclarations', () => {
     expect(result.get('--after')).toBe('1px');
   });
 
+  it('drops a trailing !important from the value', () => {
+    const css = `:root { --a: red !important; --b: 1px ! IMPORTANT; --c: "x !important"; }`;
+    const result = parseVarDeclarations(css);
+    expect(result.get('--a')).toBe('red');
+    expect(result.get('--b')).toBe('1px');
+    expect(result.get('--c')).toBe('"x !important"');
+  });
+
   it('ends a value at an unmatched closing brace even inside an open paren', () => {
     const css = `:root { --broken: calc(1px }`;
     expect(parseVarDeclarations(css).get('--broken')).toBe('calc(1px');
@@ -266,6 +274,11 @@ describe('parseThemedDeclarations', () => {
     const { declarations, themes } = parseThemedDeclarations(css, undefined, { dark: '[data-theme="dark"]', dim: '[data-theme="dim"]' });
     expect(declarations.get('--color-bg')).toBe('#fff');
     expect(themes.get('dark')).toEqual(new Map([['--color-bg', '#000'], ['--dark-only', '1px']]));
+  });
+
+  it('drops a trailing !important from theme values', () => {
+    const { themes } = parseThemedDeclarations('.dark { --color-bg: #000 !important; }', undefined, { dark: '.dark' });
+    expect(themes.get('dark')?.get('--color-bg')).toBe('#000');
   });
 
   it('keeps a :root[...] theme block out of the base values', () => {
