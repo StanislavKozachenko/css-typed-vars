@@ -139,7 +139,7 @@ npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune-check 
 | `--selector` | Extra CSS selector to scan for variables (repeatable: `--selector ".dark" --selector "[data-theme='dark']"`) |
 | `--theme` | Named theme block, kept out of the default value and emitted as `@theme <name> <value>` JSDoc tags (repeatable: `--theme dark='[data-theme="dark"]' --theme contrast='@media (prefers-contrast: more)'`) — see [Theme values](#theme-values) |
 | `--group` | Nest keys under an object named after each variable's first hyphen segment: `--color-primary`/`--color-secondary` → `cssVars.color.primary`/`cssVars.color.secondary`. A variable with no hyphen stays top-level. Can't be combined with `--prefix`. |
-| `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)`/`withFallback(ref, fallback)` helpers — see [Usage](#usage). |
+| `--helpers` | Also emit the `CssVarRef` type and typed `getCssVar(ref, el?)`/`setCssVar(ref, value, el?)`/`withFallback(ref, fallback)`/`varName(ref)` helpers — see [Usage](#usage). |
 | `--prune` | Drop generated vars with no detected `cssVars.<key>` usage. Requires `--usage <glob>` (repeatable). With `--group`, matches `cssVars.<group>.<key>` and keeps a whole group referenced as `cssVars.<group>`. |
 | `--prune-check` | Like `--prune`, but only reports unused vars without writing; exits 1 if any are found. Doesn't need `--output`. Useful in CI. |
 | `--lint-refs` | Report `var(--name)` references to variables not declared anywhere in the input; exits 1 if any (without a fallback) are found — see [Linting var() references](#linting-var-references) |
@@ -365,7 +365,7 @@ Turbopack does not yet have a public plugin API for virtual modules. Use the CLI
 | `selectors` | `string[]` | — | Extra CSS selectors to scan, e.g. `['.dark', '[data-theme="dark"]']` |
 | `themes` | `Record<string, string>` | — | Theme name → selector or `@media` prelude; values become `@theme` JSDoc tags — see [Theme values](#theme-values) |
 | `group` | `boolean` | `false` | Nest keys by each variable's first hyphen segment, e.g. `cssVars.color.primary`. Can't be combined with `prefix` |
-| `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback` helpers from `css-typed-vars/vars` |
+| `helpers` | `boolean` | `false` | Also export the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback`/`varName` helpers from `css-typed-vars/vars` |
 | `prune` | `boolean` | `false` | Drop vars with no detected `cssVars.<key>` (or `cssVars.<group>.<key>` with `group`) usage. Requires `usage` |
 | `usage` | `string \| string[]` | — | Glob(s) of source files to scan for `cssVars` usage, for `prune` |
 | `usageExclude` | `string \| string[]` | — | Glob(s) of source files to exclude from the usage scan |
@@ -435,6 +435,17 @@ withFallback(cssVars.spacingMd, 0);                 // 'var(--spacing-md, 0)'
 withFallback(cssVars.colorLink, cssVars.colorPrimary); // 'var(--color-link, var(--color-primary))'
 ```
 
+`varName` returns the custom property's own name, typed as the exact literal — for setting a variable from a style object (React inline styles, Vue `:style`), where you'd otherwise type the `--name` string by hand. Also a pure string helper:
+
+```tsx
+import { cssVars, varName } from './cssVars';
+
+varName(cssVars.colorPrimary);                    // '--color-primary'
+
+const style = { [varName(cssVars.colorPrimary)]: brandColor };
+<div style={style} />                             // sets --color-primary on this element
+```
+
 ---
 
 ## Programmatic API
@@ -451,7 +462,7 @@ await generate({
   selectors: ['.dark', '[data-theme="dark"]'],
   themes: { dark: '[data-theme="dark"]' }, // per-theme values as @theme JSDoc tags
   group: false,              // nest keys by first hyphen segment, e.g. cssVars.color.primary
-  helpers: false,            // also emit getCssVar/setCssVar/withFallback helpers
+  helpers: false,            // also emit getCssVar/setCssVar/withFallback/varName helpers
   prune: false,              // drop vars with no detected cssVars.<key> usage (requires `usage`)
   usage: 'src/**/*.{ts,tsx}',
 });

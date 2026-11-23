@@ -59,7 +59,7 @@
         },
         "helpers": {
           "type": "boolean",
-          "description": "Also emit the CssVarRef type and the getCssVar/setCssVar/withFallback helpers."
+          "description": "Also emit the CssVarRef type and the getCssVar/setCssVar/withFallback/varName helpers."
         },
         "prune": {
           "type": "boolean",
