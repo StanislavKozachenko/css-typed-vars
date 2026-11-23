@@ -30,7 +30,7 @@ export interface GenerateOptions {
   /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true, or when calling `findUnusedVars`. */
   usage?: string | string[];
   usageExclude?: string | string[];
-  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
+  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback`/`varName` helpers. */
   helpers?: boolean;
   /** Names (or `--prefix-*` patterns) that `findUndefinedRefs` shouldn't report, e.g. vars set from JS. */
   refsIgnore?: string[];

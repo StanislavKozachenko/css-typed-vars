@@ -64,7 +64,7 @@ Options:
   --selector <selector>   Also scan this selector's blocks, not just :root/@theme (repeatable)
   --theme <name>=<sel>    Theme block, emitted as @theme JSDoc tags (repeatable)
   --group                 Nest keys by the first hyphen segment (cssVars.color.primary)
-  --helpers               Also emit CssVarRef and getCssVar/setCssVar/withFallback
+  --helpers               Also emit CssVarRef and getCssVar/setCssVar/withFallback/varName
   --prune                 Drop vars with no cssVars.<key> usage (needs --usage)
   --usage <glob>          Source files to scan for cssVars usage (repeatable)
   --usage-exclude <glob>  Source files to skip in the usage scan (repeatable)

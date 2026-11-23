@@ -32,7 +32,7 @@ export interface Options {
   /** Glob(s) of source files to scan for `cssVars` usage. Required when `prune` is true. */
   usage?: string | string[];
   usageExclude?: string | string[];
-  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
+  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback`/`varName` helpers. */
   helpers?: boolean;
 }
 
