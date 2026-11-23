@@ -214,6 +214,27 @@ describe('parseVarDeclarations', () => {
     expect(parseVarDeclarations(css).get('--fallback')).toBe('var(--x, blue)');
   });
 
+  it('does not stop at a semicolon inside brackets, such as an unquoted data URI', () => {
+    const css = `:root { --bg: url(data:image/png;base64,iVBOR); --list: [a;b]; --after: 1px; }`;
+    const result = parseVarDeclarations(css);
+    expect(result.get('--bg')).toBe('url(data:image/png;base64,iVBOR)');
+    expect(result.get('--list')).toBe('[a;b]');
+    expect(result.get('--after')).toBe('1px');
+  });
+
+  it('keeps SCSS interpolation in a value whole', () => {
+    const css = `:root { --color: #{$primary}; --shadow: 0 0 #{$s} rgba(#{$c}, .5); --after: 1px; }`;
+    const result = parseVarDeclarations(css);
+    expect(result.get('--color')).toBe('#{$primary}');
+    expect(result.get('--shadow')).toBe('0 0 #{$s} rgba(#{$c}, .5)');
+    expect(result.get('--after')).toBe('1px');
+  });
+
+  it('ends a value at an unmatched closing brace even inside an open paren', () => {
+    const css = `:root { --broken: calc(1px }`;
+    expect(parseVarDeclarations(css).get('--broken')).toBe('calc(1px');
+  });
+
   it('keeps only the last declared value when a name is declared twice', () => {
     const css = `:root { --color: red; } :root { --color: blue; }`;
     expect(parseVarDeclarations(css).get('--color')).toBe('blue');
