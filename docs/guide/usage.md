@@ -60,3 +60,14 @@ withFallback(cssVars.colorPrimary, '#3b82f6');      // 'var(--color-primary, #3b
 withFallback(cssVars.spacingMd, 0);                 // 'var(--spacing-md, 0)'
 withFallback(cssVars.colorLink, cssVars.colorPrimary); // 'var(--color-link, var(--color-primary))'
 ```
+
+`varName` returns the custom property's own name, typed as the exact literal — for setting a variable from a style object (React inline styles, Vue `:style`), where you'd otherwise type the `--name` string by hand. Also a pure string helper:
+
+```tsx
+import { cssVars, varName } from './cssVars';
+
+varName(cssVars.colorPrimary);                    // '--color-primary'
+
+const style = { [varName(cssVars.colorPrimary)]: brandColor };
+<div style={style} />                             // sets --color-primary on this element
+```
