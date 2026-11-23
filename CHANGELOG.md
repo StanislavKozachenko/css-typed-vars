@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.13.0] - 2026-11-23
+
+### Added
+
+- emit a varName helper with --helpers
+
+### Fixed
+
+- drop !important from declared values
+- don't end a value at a ; inside brackets
+
+### Changed
+
+- document the varName helper
+- mention varName in the helpers option descriptions
+
+---
+
+
 ## [0.12.0] - 2026-11-19
 
 ### Added
