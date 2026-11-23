@@ -133,11 +133,16 @@ function maskQuotedContent(text: string): string {
   return result;
 }
 
+const CLOSERS: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+
 // Scans a property's declared value starting right after its colon, honoring
-// quoted content (a `;` or `}` inside a quoted value doesn't end the value).
+// quoted content and brackets: a `;` or `}` inside a quoted value, or a `;`
+// inside `()`/`[]`/`{}` (`url(data:image/png;base64,...)`, SCSS `#{$x}`),
+// doesn't end the value.
 function extractValue(text: string, start: number): string {
   let i = start;
   let quote: string | null = null;
+  const open: string[] = [];
   for (; i < text.length; i++) {
     const char = text[i];
     if (quote) {
@@ -150,7 +155,9 @@ function extractValue(text: string, start: number): string {
       quote = char;
       continue;
     }
-    if (char === ';' || char === '}') break;
+    if (char in CLOSERS) open.push(CLOSERS[char]);
+    else if (char === open[open.length - 1]) open.pop();
+    else if (char === '}' || (char === ';' && open.length === 0)) break;
   }
   return text.slice(start, i).trim();
 }
