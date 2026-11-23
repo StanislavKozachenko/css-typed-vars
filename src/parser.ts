@@ -164,6 +164,9 @@ function extractValue(text: string, start: number): string {
 
 type OnProperty = (name: string, value: string, position: number) => void;
 
+// `!important` flags the declaration; it isn't part of the variable's value.
+const IMPORTANT = /\s*!\s*important$/i;
+
 // Calls onProperty for each custom-property declaration in block, with its
 // position in the enclosing text (`offset` is where the block starts).
 function forEachProperty(block: string, onProperty: OnProperty, offset = 0): void {
@@ -171,7 +174,7 @@ function forEachProperty(block: string, onProperty: OnProperty, offset = 0): voi
   for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
     const name = prop[0];
     const colonIndex = block.indexOf(':', prop.index + name.length);
-    onProperty(name, extractValue(block, colonIndex + 1), offset + prop.index);
+    onProperty(name, extractValue(block, colonIndex + 1).replace(IMPORTANT, ''), offset + prop.index);
   }
 }
 
