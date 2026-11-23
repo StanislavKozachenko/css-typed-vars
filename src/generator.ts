@@ -320,7 +320,7 @@ export interface GeneratorOptions {
   group?: boolean;
   /** `@property` rules per var name, emitted as `@syntax` JSDoc tags and enum union types. */
   properties?: Map<string, PropertyRule>;
-  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar` runtime helpers. */
+  /** Also emit the `CssVarRef` type and `getCssVar`/`setCssVar`/`withFallback`/`varName` helpers. */
   helpers?: boolean;
   /** Per theme name, the values declared for it, emitted as `@theme <name> <value>` JSDoc tags. */
   themes?: Map<string, Map<string, string>>;
@@ -373,7 +373,8 @@ function renderRefType(varNames: string[], options: GeneratorOptions): string {
 }
 
 // `ref.slice(4, -1)` turns `var(--name)` back into `--name`; `withFallback`
-// inserts `, <fallback>` before the closing paren, keeping a literal type.
+// inserts `, <fallback>` before the closing paren, keeping a literal type, and
+// `varName` returns that `--name` typed as the exact literal.
 const HELPERS_TS = [
   'export function getCssVar(ref: CssVarRef, el: Element = document.documentElement): string {',
   '  return getComputedStyle(el).getPropertyValue(ref.slice(4, -1)).trim();',
@@ -387,6 +388,12 @@ const HELPERS_TS = [
   '',
   'export function withFallback<R extends CssVarRef, F extends string | number>(ref: R, fallback: F): CssVarWithFallback<R, F> {',
   '  return `${ref.slice(0, -1)}, ${fallback})` as CssVarWithFallback<R, F>;',
+  '}',
+  '',
+  'export type CssVarProperty<R extends CssVarRef> = R extends `var(${infer N})` ? N : never;',
+  '',
+  'export function varName<R extends CssVarRef>(ref: R): CssVarProperty<R> {',
+  '  return ref.slice(4, -1) as CssVarProperty<R>;',
   '}',
 ];
 
@@ -402,6 +409,10 @@ const HELPERS_JS = [
   'export function withFallback(ref, fallback) {',
   '  return `${ref.slice(0, -1)}, ${fallback})`;',
   '}',
+  '',
+  'export function varName(ref) {',
+  '  return ref.slice(4, -1);',
+  '}',
 ];
 
 const HELPERS_DTS = [
@@ -409,6 +420,8 @@ const HELPERS_DTS = [
   'export declare function setCssVar(ref: CssVarRef, value: string, el?: HTMLElement): void;',
   'export type CssVarWithFallback<R extends CssVarRef, F extends string | number> = R extends `var(${infer N})` ? `var(${N}, ${F})` : never;',
   'export declare function withFallback<R extends CssVarRef, F extends string | number>(ref: R, fallback: F): CssVarWithFallback<R, F>;',
+  'export type CssVarProperty<R extends CssVarRef> = R extends `var(${infer N})` ? N : never;',
+  'export declare function varName<R extends CssVarRef>(ref: R): CssVarProperty<R>;',
 ];
 
 export function generateCode(varNames: string[], options?: GeneratorOptions): string;
