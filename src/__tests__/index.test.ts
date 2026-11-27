@@ -372,6 +372,19 @@ describe('findUnusedVars', () => {
     expect(await findUnusedVars({ input, group: true, usage: `${srcDir}/*.ts` })).toEqual(['--color-secondary']);
   });
 
+  it('counts destructured and optionally chained keys as used', async () => {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const input = join(dir, 'unused-destructured.css');
+    const srcDir = join(dir, 'unused-src-destructured');
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(input, ':root { --color-primary: red; --color-secondary: blue; --gap: 4px; --radius: 2px; }');
+    await writeFile(join(srcDir, 'flat.ts'), 'const { colorPrimary, gap: g } = cssVars; cssVars?.radius;');
+    await writeFile(join(srcDir, 'grouped.ts'), 'const { primary } = cssVars.color; const { gap } = cssVars;');
+
+    expect(await findUnusedVars({ input, usage: `${srcDir}/flat.ts` })).toEqual(['--color-secondary']);
+    expect(await findUnusedVars({ input, group: true, usage: `${srcDir}/grouped.ts` })).toEqual(['--color-secondary', '--radius']);
+  });
+
   it('throws when called without usage', async () => {
     const input = join(dir, 'unused-no-usage.css');
     await expect(findUnusedVars({ input })).rejects.toThrow(/requires "usage"/);
