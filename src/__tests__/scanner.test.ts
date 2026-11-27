@@ -347,6 +347,64 @@ describe('scanUsage through a renamed import', () => {
   });
 });
 
+describe('scanUsage through destructuring and optional chaining', () => {
+  let dir: string;
+  const path = (...keys: string[]) => keys.join(String.fromCharCode(0));
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'css-typed-vars-destructure-'));
+    await writeFile(join(dir, 'flat.ts'), [
+      "import { cssVars } from './cssVars';",
+      'const { colorPrimary, gap: g, radius = "4px" } = cssVars;',
+      'const {',
+      "  'spacing-md': md, // a comment, with a comma",
+      '  fontBody = pick(a, b),',
+      '  ...rest',
+      '} = cssVars;',
+      'let shadow;',
+      '({ shadow } = cssVars);',
+      'const a = cssVars?.zIndex;',
+      "const b = cssVars?.['line-height'];",
+    ].join('\n'));
+    await writeFile(join(dir, 'alias.ts'), "import { cssVars as vars } from './cssVars';\nconst { viaAlias } = vars;");
+    // Not destructured from cssVars: another object, a comparison, an arrow body, a nested pattern.
+    await writeFile(join(dir, 'not.ts'), [
+      'const { other } = theme;',
+      'if ({ compared } == cssVars) {}',
+      'const f = ({ param }) => cssVars;',
+      'const { outer: { inner } } = cssVars;',
+    ].join('\n'));
+    await writeFile(join(dir, 'group.ts'), [
+      'const { primary, secondary: s } = cssVars.color;',
+      'const { spacing } = cssVars;',
+      'const c = cssVars?.font?.size;',
+    ].join('\n'));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true });
+  });
+
+  it('records the keys of an object pattern assigned from cssVars or its alias', async () => {
+    const { keys } = await scanUsage([`${dir}/flat.ts`, `${dir}/alias.ts`]);
+    expect([...keys].sort()).toEqual([
+      'colorPrimary', 'fontBody', 'gap', 'line-height', 'radius', 'shadow', 'spacing-md', 'viaAlias', 'zIndex',
+    ]);
+  });
+
+  it("doesn't read a pattern that isn't assigned from cssVars, or a nested one", async () => {
+    const { keys } = await scanUsage(`${dir}/not.ts`);
+    expect([...keys]).toEqual([]);
+  });
+
+  it('records a pattern assigned from a group as paths, not as the whole group', async () => {
+    const { keys, paths, wholeKeys } = await scanUsage(`${dir}/group.ts`);
+    expect([...keys].sort()).toEqual(['color', 'font', 'spacing']);
+    expect([...paths].sort()).toEqual([path('color', 'primary'), path('color', 'secondary'), path('font', 'size')]);
+    expect([...wholeKeys]).toEqual(['spacing']);
+  });
+});
+
 describe('globWatchRoots', () => {
   const cwd = join(tmpdir(), 'project', 'app');
 
