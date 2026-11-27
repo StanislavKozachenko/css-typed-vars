@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [0.13.1] - 2026-11-27
+
+### Fixed
+
+- count destructured and optionally chained keys as used
+- skip var() names cut short by an interpolation
+- don't read a nested selector with -- as a variable
+
+### Changed
+
+- describe the commit types the CHANGELOG is built from
+- describe destructuring in the --prune usage scan
+- note that --lint-refs skips interpolated var() names
+
+---
+
+
 ## [0.13.0] - 2026-11-23
 
 ### Added
