@@ -167,11 +167,16 @@ type OnProperty = (name: string, value: string, position: number) => void;
 // `!important` flags the declaration; it isn't part of the variable's value.
 const IMPORTANT = /\s*!\s*important$/i;
 
+// A custom-property name where a declaration can start: at the start of the
+// text, or after a `{`, `;` or `}`. Anything else before it makes it selector
+// text — the `--active:` of a nested `&--active:hover {`, or of `.btn--active:focus {`.
+const DECLARATION_NAME = /(?<=(?:^|[{;}])\s*)--[\w-]+(?=\s*:)/g;
+
 // Calls onProperty for each custom-property declaration in block, with its
 // position in the enclosing text (`offset` is where the block starts).
 function forEachProperty(block: string, onProperty: OnProperty, offset = 0): void {
   const masked = maskQuotedContent(block);
-  for (const prop of masked.matchAll(/--[\w-]+(?=\s*:)/g)) {
+  for (const prop of masked.matchAll(DECLARATION_NAME)) {
     const name = prop[0];
     const colonIndex = block.indexOf(':', prop.index + name.length);
     onProperty(name, extractValue(block, colonIndex + 1).replace(IMPORTANT, ''), offset + prop.index);
@@ -477,7 +482,9 @@ export function parseSourceDeclaredNames(text: string): Set<string> {
 export function parseDeclaredNames(css: string): Set<string> {
   const masked = maskQuotedContent(stripComments(css));
   const names = new Set<string>();
-  for (const match of masked.matchAll(/(?<![\w-])(--[\w-]+)\s*:/g)) names.add(match[1]);
+  // Lenient about what precedes a name (`@apply [--gap:4px]` counts), short of
+  // selector text: `.btn--active:hover`, or a nested `&--active:hover`.
+  for (const match of masked.matchAll(/(?<![\w&-])(--[\w-]+)\s*:/g)) names.add(match[1]);
   for (const match of masked.matchAll(/@property\s+(--[\w-]+)/g)) names.add(match[1]);
   return names;
 }
