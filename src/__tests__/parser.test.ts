@@ -400,6 +400,11 @@ describe('parseVarReferences', () => {
   it('ignores SCSS/Less interpolated names', () => {
     expect(parseVarReferences('.a { color: var(--#{$name}); b: var(--@{name}); }')).toEqual([]);
   });
+
+  it('ignores a name with an interpolated part, rather than reporting its static prefix', () => {
+    const css = '.a { color: var(--color-#{$name}); b: var(--size-@{n}, 4px); c: var(--#{$a}-end); d: var(--ok); }';
+    expect(parseVarReferences(css).map((ref) => ref.name)).toEqual(['--ok']);
+  });
 });
 
 describe('parseDeclaredNames', () => {
@@ -510,6 +515,11 @@ describe('parseSourceVarReferences', () => {
 
   it("doesn't mistake a decrement for the shorthand", () => {
     expect(names('const y = a -(--i); const z = f(--j);')).toEqual([]);
+  });
+
+  it('ignores a name built with a template expression or a concatenation', () => {
+    const text = "const a = `var(--color-${name})`; const b = 'var(--size-' + n + ')'; const c = `bg-(--color-${x})`; const d = `var(--gap-${n}, 4px) var(--ok)`;";
+    expect(names(text)).toEqual(['--ok']);
   });
 
   it('flags fallbacks and reports 1-based positions', () => {

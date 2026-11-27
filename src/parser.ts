@@ -427,6 +427,11 @@ export interface VarReference {
   column: number;
 }
 
+// `var(--name)` or `var(--name, ...)`. The name has to be complete — followed
+// by `)` or `,`: one cut short by an interpolation (SCSS `var(--color-#{$name})`,
+// Less `var(--size-@{n})`) names no single variable, and isn't a reference.
+const CSS_REF_RE = /\bvar\(\s*(--[\w-]+)\s*(?:(,)|\))/gi;
+
 // Every `var(--name)` reference in css, outside comments and quoted strings.
 export function parseVarReferences(css: string): VarReference[] {
   const stripped = stripCommentsWithMap(css);
@@ -434,7 +439,7 @@ export function parseVarReferences(css: string): VarReference[] {
   const lineStarts = [0];
   for (let i = 0; i < css.length; i++) if (css[i] === '\n') lineStarts.push(i + 1);
   const refs: VarReference[] = [];
-  for (const match of masked.matchAll(/\bvar\(\s*(--[\w-]+)\s*(,)?/gi)) {
+  for (const match of masked.matchAll(CSS_REF_RE)) {
     const rawPos = toRawPosition(stripped, match.index);
     let line = lineStarts.length - 1;
     while (lineStarts[line] > rawPos) line--;
@@ -444,7 +449,9 @@ export function parseVarReferences(css: string): VarReference[] {
 }
 
 // `var(--name)` — or Tailwind v4's `bg-(--name)` / `bg-(color:--name)` shorthand.
-const SOURCE_REF_RE = /\bvar\(\s*(--[\w-]+)\s*(,)?|(?<=[\w-]-)\((?:[\w-]+:)?(--[\w-]+)\)/g;
+// As in CSS, a name cut short isn't a reference: `var(--color-${name})` in a
+// template literal, or `'var(--size-' + n + ')'`.
+const SOURCE_REF_RE = /\bvar\(\s*(--[\w-]+)\s*(?:(,)|\))|(?<=[\w-]-)\((?:[\w-]+:)?(--[\w-]+)\)/g;
 
 // Every `var(--name)` reference in a source file (TS/JSX, Vue, HTML, ...), and
 // every Tailwind `bg-(--name)` shorthand. Textual, unlike parseVarReferences:

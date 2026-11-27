@@ -249,6 +249,16 @@ describe('CLI with a single config', () => {
     expect(stderr).not.toContain('--gone');
   });
 
+  it('passes --lint-refs on names built by interpolation', async () => {
+    const { status, stdout, stderr } = await runCli({
+      'a/x.scss': ':root { --color-red: red; } .a { color: var(--color-#{$name}); }',
+      'src/App.tsx': 'const s = { color: `var(--color-${name})`, gap: \'var(--size-\' + n + \')\' };',
+    }, ['--input', 'a/*.scss', '--lint-refs', '--refs-source', 'src/**/*.tsx']);
+    expect(stderr).toBe('');
+    expect(status).toBe(0);
+    expect(stdout).toContain('no references to undeclared variables');
+  });
+
   it('rejects an invalid --naming value', async () => {
     const { status, stderr } = await runCli({}, ['--input', 'x.css', '--output', 'vars.ts', '--naming', 'shouty']);
     expect(status).toBe(1);
