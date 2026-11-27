@@ -342,8 +342,11 @@ describe('CLI --watch', () => {
       await rm(join(cwd, 'styles/b.css'));
       await waitFor(async () => !(await vars()).includes("b: 'var(--b)'"));
       expect(output.stdout).toContain('Removed: styles/b.css');
+      // vars.ts is written before its run's "Generated" line is printed and read
+      // here: wait for all four (startup, edit, add, remove) before counting on.
+      const runs = 4;
+      await waitFor(() => output.stdout.match(/Generated/g)!.length >= runs);
       // Neither an excluded file nor one deeper than `styles/*.css` reaches triggers a run.
-      const runs = output.stdout.match(/Generated/g)!.length;
       await writeFile(join(cwd, 'styles/vendor.css'), ':root { --vendor: 2; }');
       await writeFile(join(cwd, 'styles/nested/deep.css'), ':root { --deep: 2; }');
       await new Promise((r) => setTimeout(r, 500));
