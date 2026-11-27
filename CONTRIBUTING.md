@@ -32,17 +32,29 @@ Always run all three before submitting a PR — CI checks them in sequence.
 
 ## Commit messages
 
-Use the imperative mood and present tense — "Add option" not "Added option". Keep the subject line under 72 characters. If the change needs explanation, add a blank line and a short paragraph body.
+Start the subject with a [Conventional Commits](https://www.conventionalcommits.org/) type, an optional scope, and a short description in the imperative mood and present tense — "add option" not "added option". Keep the subject line under 72 characters. If the change needs explanation, add a blank line and a short paragraph body.
 
 ```
-Add `selectors` option to scan variables outside :root
+feat(parser): add `selectors` option to scan variables outside :root
 
 Extends the parser to accept an array of CSS selectors so that
 variables defined in scopes like `:host` or `[data-theme]` are
 included in the output.
 ```
 
-No Conventional Commits prefix is required.
+The type isn't cosmetic: the release workflow builds the CHANGELOG from it, using the subject (without the type and scope) as the entry.
+
+| Type | CHANGELOG section |
+|---|---|
+| `feat` | Added |
+| `fix` | Fixed |
+| `refactor`, `perf`, `docs`, `ci` | Changed |
+| `test`, `chore`, anything else | not listed |
+
+- Write the description so it reads well on its own in the CHANGELOG — the scope is dropped there.
+- Split a change by type: the fix, its tests (`test`) and its docs (`docs`) as separate commits.
+- The scope is the area touched: `parser`, `generator`, `scanner`, `cli`, `plugin`.
+- The `CHANGELOG pre-check` CI job fails a PR when there's no listed commit since the last release, since the next release would have an empty CHANGELOG entry.
 
 ## Submitting issues
 
@@ -62,6 +74,10 @@ Use the title format `Area: short description` (e.g. `CLI: --watch misses rename
    - `Key changes:` bullet list — file path and what changed
    - `Closes #N`
 5. PRs require passing CI to be merged.
+
+## Releasing
+
+Releases are cut by a maintainer with the `Release` workflow (Actions → Release → Run workflow), choosing a `patch`, `minor` or `major` bump. It runs the checks, bumps the version, writes the CHANGELOG entry from the commits since the last tag, creates the GitHub release and publishes to npm — don't bump the version or edit `CHANGELOG.md` in a PR.
 
 ## License
 
