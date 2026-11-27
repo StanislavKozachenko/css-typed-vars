@@ -168,7 +168,7 @@ Notes:
 
 ## Pruning unused variables
 
-`--prune` scans your source files for `cssVars.<key>` (dot access) or `cssVars['<key>']`/`cssVars["<key>"]` (bracket access) usage and drops any generated variable it didn't find a match for:
+`--prune` scans your source files for `cssVars.<key>` (dot access), `cssVars['<key>']`/`cssVars["<key>"]` (bracket access) or `const { <key> } = cssVars` (destructuring) usage — optional chaining (`cssVars?.<key>`) included — and drops any generated variable it didn't find a match for:
 
 ```sh
 npx css-typed-vars --input "src/**/*.css" --output src/cssVars.ts --prune --usage "src/**/*.{ts,tsx}"
@@ -187,6 +187,7 @@ css-typed-vars: pruned 2 unused variable(s): --legacy-shadow, --old-radius
 
 This is a textual scan, not a full parser, so it has limitations worth knowing:
 
+- Destructuring is read one level deep — `const { colorPrimary, gap: g } = cssVars`, or `const { primary } = cssVars.color` with `--group` — but not a nested pattern (`{ color: { primary } }`), a `...rest` element or a destructured function parameter.
 - A renamed import (`import { cssVars as vars } from './cssVars'`) is followed within the file that declares it, but not a re-export under another name or an assignment (`const v = cssVars`).
 - A match inside a comment or string still counts as "used".
 
