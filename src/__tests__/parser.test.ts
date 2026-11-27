@@ -411,6 +411,40 @@ describe('parseDeclaredNames', () => {
   it('ignores names inside comments and strings', () => {
     expect([...parseDeclaredNames(":root { /* --a: 1; */ content: '--b: 2'; --c: 3; }")]).toEqual(['--c']);
   });
+
+  it('ignores a selector with -- before a pseudo-class', () => {
+    const css = '.card { --a: 1; &--active:hover { --b: 2 } } .btn--primary:focus { color: red } .x { @apply [--c:3]; }';
+    expect([...parseDeclaredNames(css)].sort()).toEqual(['--a', '--b', '--c']);
+  });
+});
+
+describe('a nested selector with -- before a pseudo-class', () => {
+  it('is not read as a declaration, with & or a full selector', () => {
+    const css = `.card {
+      --gap: 4px;
+      &--active:hover { color: red; }
+      .btn--primary:focus { --inner: 1 }
+      &--wide : not(.x) { --wide: 2; }
+      --last: 3
+    }`;
+    expect([...parseVarDeclarations(css, ['.card'])]).toEqual([
+      ['--gap', '4px'],
+      ['--inner', '1'],
+      ['--wide', '2'],
+      ['--last', '3'],
+    ]);
+  });
+
+  it('is skipped inside :root and theme blocks too', () => {
+    const css = ':root { --a: 1; .btn--primary:hover { color: red } } .dark { .btn--primary:hover { --b: 2 } }';
+    const { declarations, themes } = parseThemedDeclarations(css, undefined, { dark: '.dark' });
+    expect([...declarations]).toEqual([['--a', '1']]);
+    expect([...themes.get('dark')!]).toEqual([['--b', '2']]);
+  });
+
+  it('still reads declarations with no ; or whitespace around them', () => {
+    expect(parseVarNames(':root{--a:1;--b:2}:root{ .x{}--c:3 }')).toEqual(['--a', '--b', '--c']);
+  });
 });
 
 describe('parsePropertyRules', () => {
