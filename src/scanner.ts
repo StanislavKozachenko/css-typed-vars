@@ -189,7 +189,8 @@ export async function scanVarNames(
 
 // Matches `cssVars.foo` (dot access) and `cssVars['foo']`/`cssVars["foo"]` (bracket
 // access) in source text, also through a renamed import in the same file
-// (`import { cssVars as vars } ...` -> `vars.foo`). Textual, not AST-based — like
+// (`import { cssVars as vars } ...` -> `vars.foo`), optional chaining
+// (`cssVars?.foo`) and destructuring (`const { foo } = cssVars`). Textual, not AST-based — like
 // the rest of this scanner — so it doesn't distinguish a real reference from one
 // inside a comment or string, nor follow a re-export under another name.
 const ROOT_RE = /\bcssVars\b/g;
@@ -209,7 +210,8 @@ function rootPattern(text: string): RegExp {
   return new RegExp(`${ROOT_RE.source}|(?<![\\w$.])(?:${names})(?![\\w$])`, 'g');
 }
 
-const ACCESS_RE = /\s*(?:\.\s*([A-Za-z_$][\w$]*)|\[\s*(['"`])((?:(?!\2).)*)\2\s*\])/y;
+// `.key`, `['key']`, or either through optional chaining (`?.key`, `?.['key']`).
+const ACCESS_RE = /\s*(?:\??\.\s*([A-Za-z_$][\w$]*)|(?:\?\.\s*)?\[\s*(['"`])((?:(?!\2).)*)\2\s*\])/y;
 
 function readAccess(text: string, from: number): { key: string; end: number } | null {
   ACCESS_RE.lastIndex = from;
@@ -228,13 +230,49 @@ export interface CssVarsUsage {
   files: string[];
 }
 
+// One property of an object pattern: `key`, `key: alias`, `key = fallback` or `'quoted-key': alias`.
+const PATTERN_KEY_RE = /^\s*(?:([A-Za-z_$][\w$]*)|(['"`])((?:(?!\2).)*)\2)\s*(?:[:=]|$)/;
+
+// The keys of the object pattern that the expression starting at `at` is
+// assigned to: `a` and `b` for the `cssVars` of `const { a, b: alias } = cssVars`.
+// Empty when it isn't assigned to one. A nested pattern (`{ color: { primary } }`)
+// and a `...rest` element aren't read.
+function readPatternKeys(text: string, at: number): string[] {
+  let i = at - 1;
+  while (i >= 0 && /\s/.test(text[i])) i--;
+  if (text[i] !== '=') return [];
+  i--;
+  while (i >= 0 && /\s/.test(text[i])) i--;
+  if (text[i] !== '}') return [];
+  const open = text.lastIndexOf('{', i);
+  if (open === -1) return [];
+  const body = text.slice(open + 1, i);
+  if (body.includes('}')) return [];
+  const keys: string[] = [];
+  for (const part of body.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '').split(',')) {
+    const match = PATTERN_KEY_RE.exec(part);
+    if (match) keys.push(match[1] ?? match[3]);
+  }
+  return keys;
+}
+
 function extractUsage(text: string, into: CssVarsUsage): void {
   for (const root of text.matchAll(rootPattern(text))) {
     const first = readAccess(text, root.index + root[0].length);
-    if (!first) continue;
+    const second = first && readAccess(text, first.end);
+    // Destructured from the object (`const { a } = cssVars`): like `cssVars.a`.
+    // From one of its groups (`const { a } = cssVars.color`): like `cssVars.color.a`.
+    const destructured = second ? [] : readPatternKeys(text, root.index);
+    if (!first) {
+      for (const key of destructured) {
+        into.keys.add(key);
+        into.wholeKeys.add(key);
+      }
+      continue;
+    }
     into.keys.add(first.key);
-    const second = readAccess(text, first.end);
     if (second) into.paths.add(`${first.key}\0${second.key}`);
+    else if (destructured.length > 0) for (const leaf of destructured) into.paths.add(`${first.key}\0${leaf}`);
     else into.wholeKeys.add(first.key);
   }
 }
