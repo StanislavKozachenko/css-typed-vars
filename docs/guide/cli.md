@@ -213,6 +213,7 @@ css-typed-vars: 2 reference(s) to undeclared variables:
 - A variable counts as declared if any input file declares it in any block (not just `:root`), or registers it with `@property`.
 - References without a fallback are errors and make the command exit `1`. References with a fallback (`var(--x, 4px)`) still work at runtime, so they're only reported as warnings.
 - References inside comments and strings are ignored; positions point to the original file.
+- A name with an interpolated part — SCSS `var(--color-#{$name})`, Less `var(--size-@{n})` — isn't a reference to one variable, and is skipped.
 - Variables set from JavaScript or defined by another stylesheet you don't scan can be skipped with `--refs-ignore` (repeatable, a trailing `*` matches a prefix): `--refs-ignore "--tw-*" --refs-ignore --app-height`, or `refsIgnore` in the config file.
 
 ### In source files
@@ -229,6 +230,7 @@ css-typed-vars: 1 reference(s) to undeclared variables:
 ```
 
 - Finds `var(--name)` anywhere in the file — in strings, template literals, Tailwind classes like `bg-[var(--brand)]` — and Tailwind v4's `bg-(--brand)` shorthand.
+- A name built at runtime is skipped: `` `var(--color-${name})` ``, `'var(--size-' + n + ')'`.
 - Variables a source file sets itself count as declared: an object key (`{ '--gap': '4px' }`), a `style` attribute (`style="--gap: 4px"`), `setProperty('--gap', ...)` or a Tailwind arbitrary property (`[--gap:4px]`). This applies to the CSS references too.
 - Like the `--prune` usage scan, this is textual: a reference inside a comment counts too.
 - The target's own output file is skipped even if the glob matches it — `--check` is what tells whether it's stale.
